@@ -1,10 +1,10 @@
 [package]
-name = "forge-framework-macros"
+name = "ironforge-macros"
 version = "0.1.0"
 edition = "2024"
 description = "Procedural macros for the Forge web framework"
 license = "Apache-2.0"
-repository = "https://github.com/donbarrigon/forge"
+repository = "https://github.com/donbarrigon/ironforge"
 
 [lib]
 proc-macro = true
