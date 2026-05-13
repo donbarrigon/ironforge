@@ -2,5 +2,13 @@
   "[rust]": {
     "editor.defaultFormatter": "rust-lang.rust-analyzer",
     "editor.formatOnSave": true,
-  }
+  },
+  "material-icon-theme.folders.customClones": [
+    {
+      "name": "custom-macros",
+      "base": "functions",
+      "color": "#FF9800",
+      "folderNames": ["macros"]
+    }
+  ]
 }

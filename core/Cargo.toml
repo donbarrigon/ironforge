@@ -7,7 +7,7 @@ license = "Apache-2.0"
 repository = "https://github.com/donbarrigon/ironforge"
 
 [lib]
-name = "forge"
+name = "ironforge"
 path = "src/lib.rs"
 
 [dependencies]
