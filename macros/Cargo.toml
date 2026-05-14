@@ -10,8 +10,6 @@ repository = "https://github.com/donbarrigon/ironforge"
 proc-macro = true
 
 [dependencies]
-ironforge_macros = { path = "../macros" }
-
 syn   = { version = "2", features = ["full"] }
 quote = "1"
 darling = "0.20"

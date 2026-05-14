@@ -1,10 +1,13 @@
-use crate::server::router::{Controller, Middleware, Router};
+use crate::errors::Error;
+use crate::server::router::{Controller, Middleware, RouteMap, Router};
+use ahash::AHashMap;
 
 pub struct Path {
     pub method: String,
     pub path: String,
     pub name: String,
     pub params: Vec<String>,
+    pub is_dinamic: bool,
     pub controller_name: String,
     pub controller: Controller,
     pub middlewares: Vec<Middleware>,
@@ -16,6 +19,7 @@ impl Path {
         path: impl Into<String>,
         name: impl Into<String>,
         params: Vec<String>,
+        is_dinamic: bool,
         controller_name: impl Into<String>,
         controller: Controller,
         middlewares: Vec<Middleware>,
@@ -25,6 +29,7 @@ impl Path {
             path: path.into(),
             name: name.into(),
             params: params,
+            is_dinamic,
             controller_name: controller_name.into(),
             controller,
             middlewares,
@@ -43,14 +48,16 @@ impl Path {
 }
 
 pub struct RouterBuilder {
+    pub name: String,
     pub paths: Vec<Path>,
     pub prefixes: Vec<String>,
     pub middlewares: Vec<Middleware>,
 }
 
 impl RouterBuilder {
-    pub fn new() -> Self {
+    pub fn new(name: impl Into<String>) -> Self {
         return Self {
+            name: name.into(),
             paths: Vec::new(),
             prefixes: Vec::new(),
             middlewares: Vec::new(),
@@ -58,10 +65,14 @@ impl RouterBuilder {
     }
 
     pub fn add_path(&mut self, method: String, path: String, controller_name: String, controller: Controller) {
-        let p = format!("{}/{}", self.prefixes.join("/"), path)
+        let mut p = format!("{}/{}", self.prefixes.join("/"), path)
             .trim()
             .trim_matches('/')
             .to_lowercase();
+
+        while p.contains("//") {
+            p = p.replace("//", "/");
+        }
 
         let parts: Vec<&str> = p.split('/').collect();
         let mut params: Vec<String> = Vec::new();
@@ -76,6 +87,7 @@ impl RouterBuilder {
                 name_parts.push(part.to_string());
             }
         }
+        let is_dinamic: bool = params.len() > 0;
 
         let name = format!("{}.{}", name_parts.join("."), controller_name);
         self.paths.push(Path::new(
@@ -83,14 +95,44 @@ impl RouterBuilder {
             p,
             name,
             params,
+            is_dinamic,
             controller_name,
             controller,
             self.middlewares.clone(),
         ));
     }
 
-    pub fn build(&self) -> Router {
+    pub fn make_map(&self) -> Result<AHashMap<String, RouteMap>, Error> {
+        let mut map = AHashMap::new();
+
+        for path in &self.paths {
+            if map.contains_key(&path.name) {
+                return Err(Error::conflict(
+                    format!("El name de la ruta '{}' esta duplicado", path.name),
+                    None,
+                ));
+            }
+
+            map.insert(
+                path.name.clone(),
+                RouteMap {
+                    path: path.path.clone(),
+                    params: path.params.clone(),
+                },
+            );
+        }
+
+        return Ok(map);
+    }
+
+    pub fn make_router(&self) -> Result<Router, Error> {
         // TODO: proceso de construir el router
-        return Router::new();
+        let mut router = Router::new(self.name.clone());
+        router.map = self.make_map()?;
+        return Ok(router);
+    }
+
+    pub fn build(&self) -> Result<Router, Error> {
+        return self.make_router();
     }
 }

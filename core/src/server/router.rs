@@ -1,25 +1,31 @@
 use crate::errors::Error;
 use crate::log;
 use crate::server::context::Context;
+use ahash::AHashMap;
 use http_body_util::Full;
 use hyper::body::Bytes;
 use hyper::{Request, Response};
-use std::collections::HashMap;
 use std::convert::Infallible;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-pub type ControllerFuture = Pin<Box<dyn Future<Output = Result<Response<Full<Bytes>>, Error>> + Send>>;
-pub type Controller = Arc<dyn Fn(&mut Context) -> ControllerFuture + Send + Sync>;
+pub type ControllerFuture<'a> = Pin<Box<dyn Future<Output = Result<Response<Full<Bytes>>, Error>> + Send + 'a>>;
+pub type Controller = Arc<dyn for<'a> Fn(&'a mut Context) -> ControllerFuture<'a> + Send + Sync>;
 
-pub type MiddlewareFuture = Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
-pub type Middleware = Arc<dyn Fn(&mut Context) -> MiddlewareFuture + Send + Sync>;
+pub type MiddlewareFuture<'a> = Pin<Box<dyn Future<Output = Result<(), Error>> + Send + 'a>>;
+pub type Middleware = Arc<dyn for<'a> Fn(&'a mut Context) -> MiddlewareFuture<'a> + Send + Sync>;
 
 #[derive(Clone)]
 pub struct Param {
     pub name: String,
     pub value: String,
+}
+
+#[derive(Clone)]
+pub struct RouteMap {
+    pub path: String,
+    pub params: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -47,15 +53,17 @@ impl Route {
 
 #[derive(Clone)]
 pub struct Router {
+    pub name: String,
     pub route: Route,
-    pub map: HashMap<String, Route>,
+    pub map: AHashMap<String, RouteMap>,
 }
 
 impl Router {
-    pub fn new() -> Self {
+    pub fn new(name: impl Into<String>) -> Self {
         Self {
+            name: name.into(),
             route: Route::new(),
-            map: HashMap::new(),
+            map: AHashMap::new(),
         }
     }
 

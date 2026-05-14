@@ -11,6 +11,8 @@ name = "ironforge"
 path = "src/lib.rs"
 
 [dependencies]
+ironforge-macros = { path = "../macros" }
+ahash = "0.8"
 
 # ================ hyper ================
 hyper = { version = "1", features = ["full"] }
@@ -37,4 +39,3 @@ serde_json = "1.0.149"
 # ##tokio = {version = "1.32.0", features = ["full"]}
 [dependencies.mongodb]
 version = "3.6.0"
-

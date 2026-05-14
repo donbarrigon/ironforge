@@ -224,7 +224,7 @@ pub async fn server_start() -> Result<(), Box<dyn std::error::Error>> {
     let mut handles = vec![];
 
     for server_env in &config.server {
-        let mut server = Server::new(&server_env.host, server_env.port, Router::new());
+        let mut server = Server::new(&server_env.host, server_env.port, Router::new("test"));
 
         if server_env.https {
             server.enable_https();
