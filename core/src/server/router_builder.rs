@@ -1,4 +1,5 @@
-use crate::errors::Error;
+use crate::error::HttpError;
+use crate::error::http_error::Empty;
 use crate::server::router::{Controller, Middleware, RouteMap, Router};
 use ahash::AHashMap;
 
@@ -102,14 +103,14 @@ impl RouterBuilder {
         ));
     }
 
-    pub fn make_map(&self) -> Result<AHashMap<String, RouteMap>, Error> {
+    pub fn make_map(&self) -> Result<AHashMap<String, RouteMap>, HttpError> {
         let mut map = AHashMap::new();
 
         for path in &self.paths {
             if map.contains_key(&path.name) {
-                return Err(Error::conflict(
+                return Err(HttpError::conflict(
                     format!("El name de la ruta '{}' esta duplicado", path.name),
-                    None,
+                    Empty,
                 ));
             }
 
@@ -125,14 +126,14 @@ impl RouterBuilder {
         return Ok(map);
     }
 
-    pub fn make_router(&self) -> Result<Router, Error> {
+    pub fn make_router(&self) -> Result<Router, HttpError> {
         // TODO: proceso de construir el router
         let mut router = Router::new(self.name.clone());
         router.map = self.make_map()?;
         return Ok(router);
     }
 
-    pub fn build(&self) -> Result<Router, Error> {
+    pub fn build(&self) -> Result<Router, HttpError> {
         return self.make_router();
     }
 }

@@ -2,21 +2,21 @@ use http_body_util::Full;
 use hyper::Response;
 use hyper::body::Bytes;
 use ironforge::server::{Context, RouterBuilder};
-use ironforge::{Error, router_build};
+use ironforge::{HttpError, router_build};
 
-async fn index(_context: &mut Context) -> Result<Response<Full<Bytes>>, Error> {
+async fn index(_context: &mut Context) -> Result<Response<Full<Bytes>>, HttpError> {
     Ok(Response::new(Full::new(Bytes::from("ok"))))
 }
 
-async fn auth(_context: &mut Context) -> Result<(), Error> {
+async fn auth(_context: &mut Context) -> Result<(), HttpError> {
     Ok(())
 }
 
-async fn admin(_context: &mut Context) -> Result<(), Error> {
+async fn admin(_context: &mut Context) -> Result<(), HttpError> {
     Ok(())
 }
 
-async fn rate_limit(_context: &mut Context) -> Result<(), Error> {
+async fn rate_limit(_context: &mut Context) -> Result<(), HttpError> {
     Ok(())
 }
 

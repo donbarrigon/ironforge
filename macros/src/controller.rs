@@ -43,7 +43,7 @@ pub fn controller_macro(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let expanded = quote! {
         #vis async fn #name(#inputs) -> Result
             ::hyper::Response<::http_body_util::Full<::hyper::body::Bytes>>,
-            ::forge_framework::errors::Error
+            ::ironforge::error::HttpError
         > {
             #body
         }

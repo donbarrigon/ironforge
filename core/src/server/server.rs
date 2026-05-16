@@ -14,6 +14,7 @@ use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tokio_rustls::TlsAcceptor;
 
+use crate::config::env;
 use crate::server::Router;
 
 pub struct Server {
@@ -220,7 +221,7 @@ fn get_tls_acceptor() -> Result<TlsAcceptor, Box<dyn std::error::Error>> {
 pub async fn server_start() -> Result<(), Box<dyn std::error::Error>> {
     crate::config::init()?;
 
-    let config = crate::config::env();
+    let config = env();
     let mut handles = vec![];
 
     for server_env in &config.server {

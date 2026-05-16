@@ -1,4 +1,4 @@
-use crate::errors::Error;
+use crate::error::HttpError;
 use crate::log;
 use crate::server::context::Context;
 use ahash::AHashMap;
@@ -10,10 +10,10 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-pub type ControllerFuture<'a> = Pin<Box<dyn Future<Output = Result<Response<Full<Bytes>>, Error>> + Send + 'a>>;
+pub type ControllerFuture<'a> = Pin<Box<dyn Future<Output = Result<Response<Full<Bytes>>, HttpError>> + Send + 'a>>;
 pub type Controller = Arc<dyn for<'a> Fn(&'a mut Context) -> ControllerFuture<'a> + Send + Sync>;
 
-pub type MiddlewareFuture<'a> = Pin<Box<dyn Future<Output = Result<(), Error>> + Send + 'a>>;
+pub type MiddlewareFuture<'a> = Pin<Box<dyn Future<Output = Result<(), HttpError>> + Send + 'a>>;
 pub type Middleware = Arc<dyn for<'a> Fn(&'a mut Context) -> MiddlewareFuture<'a> + Send + Sync>;
 
 #[derive(Clone)]
