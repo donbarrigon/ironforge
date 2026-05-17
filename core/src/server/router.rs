@@ -16,6 +16,10 @@ pub type Controller = Arc<dyn for<'a> Fn(&'a mut Context) -> ControllerFuture<'a
 pub type MiddlewareFuture<'a> = Pin<Box<dyn Future<Output = Result<(), HttpError>> + Send + 'a>>;
 pub type Middleware = Arc<dyn for<'a> Fn(&'a mut Context) -> MiddlewareFuture<'a> + Send + Sync>;
 
+async fn not_found(_c: &mut Context) -> Result<Response<Full<Bytes>>, HttpError> {
+    return Ok(Response::new(Full::new(Bytes::from(""))));
+}
+
 #[derive(Clone)]
 pub struct Param {
     pub name: String,
@@ -30,23 +34,23 @@ pub struct RouteMap {
 
 #[derive(Clone)]
 pub struct Route {
-    pub path: &'static str,
-    pub controller: Option<Controller>,
+    pub controller: Controller,
     pub middlewares: Vec<Middleware>,
     pub params: Vec<Param>,
-    pub children: Vec<Route>,
-    pub is_dynamic: bool,
+    pub static_routes: AHashMap<String, Route>,
+    pub dinamic_routes: Option<Box<Route>>,
+    pub is_wildcard: bool,
 }
 
 impl Route {
     pub fn new() -> Self {
         Self {
-            path: "",
-            controller: None,
+            controller: Arc::new(|c| Box::pin(not_found(c))),
             middlewares: Vec::new(),
             params: Vec::new(),
-            children: Vec::new(),
-            is_dynamic: false,
+            static_routes: AHashMap::new(),
+            dinamic_routes: None,
+            is_wildcard: false,
         }
     }
 }
@@ -54,7 +58,8 @@ impl Route {
 #[derive(Clone)]
 pub struct Router {
     pub name: String,
-    pub route: Route,
+    pub static_routes: AHashMap<String, Route>,
+    pub dinamic_routes: Route,
     pub map: AHashMap<String, RouteMap>,
 }
 
@@ -62,7 +67,8 @@ impl Router {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
-            route: Route::new(),
+            static_routes: AHashMap::new(),
+            dinamic_routes: Route::new(),
             map: AHashMap::new(),
         }
     }

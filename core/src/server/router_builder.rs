@@ -1,5 +1,6 @@
 use crate::error::HttpError;
 use crate::error::http_error::Empty;
+use crate::log;
 use crate::server::router::{Controller, Middleware, RouteMap, Router};
 use ahash::AHashMap;
 
@@ -9,6 +10,7 @@ pub struct Path {
     pub name: String,
     pub params: Vec<String>,
     pub is_dinamic: bool,
+    pub is_wildcard: bool,
     pub controller_name: String,
     pub controller: Controller,
     pub middlewares: Vec<Middleware>,
@@ -21,6 +23,7 @@ impl Path {
         name: impl Into<String>,
         params: Vec<String>,
         is_dinamic: bool,
+        is_wildcard: bool,
         controller_name: impl Into<String>,
         controller: Controller,
         middlewares: Vec<Middleware>,
@@ -31,6 +34,7 @@ impl Path {
             name: name.into(),
             params: params,
             is_dinamic,
+            is_wildcard,
             controller_name: controller_name.into(),
             controller,
             middlewares,
@@ -75,15 +79,22 @@ impl RouterBuilder {
             p = p.replace("//", "/");
         }
 
+        if p.contains('*') && !p.ends_with("/*") {
+            panic!("invalid wildcard in '{}' — wildcard must be at the end as /*", p);
+        }
+
         let parts: Vec<&str> = p.split('/').collect();
         let mut params: Vec<String> = Vec::new();
         let mut name_parts: Vec<String> = Vec::new();
+        let mut is_wildcard: bool = false;
 
         for part in parts {
             if part.starts_with('{') && part.ends_with('}') {
                 params.push(part[1..part.len() - 1].to_string());
             } else if part.starts_with(':') {
                 params.push(part[1..part.len()].to_string());
+            } else if part.ends_with("*") {
+                is_wildcard = true;
             } else {
                 name_parts.push(part.to_string());
             }
@@ -97,6 +108,7 @@ impl RouterBuilder {
             name,
             params,
             is_dinamic,
+            is_wildcard,
             controller_name,
             controller,
             self.middlewares.clone(),
@@ -108,10 +120,9 @@ impl RouterBuilder {
 
         for path in &self.paths {
             if map.contains_key(&path.name) {
-                return Err(HttpError::conflict(
-                    format!("El name de la ruta '{}' esta duplicado", path.name),
-                    Empty,
-                ));
+                let msg = format!("duplicate route name '{}'", path.name); // TODO: msg
+                log::warning(&msg, None);
+                return Err(HttpError::conflict(msg, Empty));
             }
 
             map.insert(

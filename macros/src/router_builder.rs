@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::{Expr, ExprPath, Ident, Result, Token, braced, bracketed, parenthesized};
+use syn::{Expr, ExprLit, ExprPath, Ident, Lit, Result, Token, braced, bracketed, parenthesized};
 
 const HTTP_METHODS: &[&str] = &[
     "connect", "delete", "get", "head", "options", "patch", "post", "put", "trace",
@@ -26,6 +26,8 @@ pub fn router_builder_macro(input: TokenStream) -> TokenStream {
     .into()
 }
 
+// ─── Input ────────────────────────────────────────────────────────────────────
+
 struct RouterInput {
     is_mut: bool,
     builder: Expr,
@@ -47,10 +49,12 @@ impl Parse for RouterInput {
     }
 }
 
+// ─── Items ────────────────────────────────────────────────────────────────────
+
 enum RouterItem {
     Route(RouteItem),
-    Group(BlockItem),
-    Middleware(BlockItem),
+    Group(GroupItem),
+    Middleware(MiddlewareItem),
 }
 
 struct RouteItem {
@@ -61,10 +65,18 @@ struct RouteItem {
     middlewares: Vec<ExprPath>,
 }
 
-struct BlockItem {
-    value: Expr,
+struct GroupItem {
+    prefixes: Vec<Expr>,
+    middlewares: Vec<ExprPath>,
     items: Vec<RouterItem>,
 }
+
+struct MiddlewareItem {
+    middlewares: Vec<ExprPath>,
+    items: Vec<RouterItem>,
+}
+
+// ─── Parsers ──────────────────────────────────────────────────────────────────
 
 fn parse_items(input: ParseStream<'_>) -> Result<Vec<RouterItem>> {
     let mut items = Vec::new();
@@ -74,8 +86,8 @@ fn parse_items(input: ParseStream<'_>) -> Result<Vec<RouterItem>> {
         let item_name_string = item_name.to_string();
 
         let item = match item_name_string.as_str() {
-            "group" => RouterItem::Group(parse_block_item(input)?),
-            "middleware" => RouterItem::Middleware(parse_block_item(input)?),
+            "group" => RouterItem::Group(parse_group(input)?),
+            "middleware" => RouterItem::Middleware(parse_middleware(input)?),
             method if HTTP_METHODS.contains(&method) => RouterItem::Route(parse_route(item_name, input)?),
             _ => {
                 return Err(syn::Error::new_spanned(
@@ -116,6 +128,7 @@ fn parse_route(method: Ident, input: ParseStream<'_>) -> Result<RouteItem> {
         }
     };
     let name = args.next();
+
     let middlewares = if input.peek(syn::token::Bracket) {
         let content;
         bracketed!(content in input);
@@ -135,17 +148,81 @@ fn parse_route(method: Ident, input: ParseStream<'_>) -> Result<RouteItem> {
     })
 }
 
-fn parse_block_item(input: ParseStream<'_>) -> Result<BlockItem> {
+fn parse_group(input: ParseStream<'_>) -> Result<GroupItem> {
+    // Parsear uno o varios prefixes separados por coma: group("api", "v1")
     let content;
     parenthesized!(content in input);
-    let value = content.parse()?;
+    let prefixes = Punctuated::<Expr, Token![,]>::parse_terminated(&content)?
+        .into_iter()
+        .collect::<Vec<_>>();
 
+    if prefixes.is_empty() {
+        return Err(syn::Error::new(
+            content.span(),
+            "group(...) requires at least one path segment",
+        ));
+    }
+
+    // Validar que todos sean string literals
+    for prefix in &prefixes {
+        match prefix {
+            Expr::Lit(ExprLit { lit: Lit::Str(_), .. }) => {}
+            expr => {
+                return Err(syn::Error::new_spanned(
+                    expr,
+                    "group path segments must be string literals",
+                ));
+            }
+        }
+    }
+
+    // Middlewares opcionales: [auth, rate_limit]
+    let middlewares = if input.peek(syn::token::Bracket) {
+        let content;
+        bracketed!(content in input);
+        Punctuated::<ExprPath, Token![,]>::parse_terminated(&content)?
+            .into_iter()
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    // Body
     let body;
     braced!(body in input);
     let items = parse_items(&body)?;
 
-    Ok(BlockItem { value, items })
+    Ok(GroupItem {
+        prefixes,
+        middlewares,
+        items,
+    })
 }
+
+fn parse_middleware(input: ParseStream<'_>) -> Result<MiddlewareItem> {
+    // Parsear uno o varios middlewares separados por coma: middleware(auth, admin)
+    let content;
+    parenthesized!(content in input);
+    let middlewares = Punctuated::<ExprPath, Token![,]>::parse_terminated(&content)?
+        .into_iter()
+        .collect::<Vec<_>>();
+
+    if middlewares.is_empty() {
+        return Err(syn::Error::new(
+            content.span(),
+            "middleware(...) requires at least one middleware function",
+        ));
+    }
+
+    // Body
+    let body;
+    braced!(body in input);
+    let items = parse_items(&body)?;
+
+    Ok(MiddlewareItem { middlewares, items })
+}
+
+// ─── Expanders ────────────────────────────────────────────────────────────────
 
 fn expand_items(items: &[RouterItem]) -> Vec<proc_macro2::TokenStream> {
     items.iter().map(expand_item).collect()
@@ -205,26 +282,71 @@ fn expand_route(route: &RouteItem) -> proc_macro2::TokenStream {
     }
 }
 
-fn expand_group(group: &BlockItem) -> proc_macro2::TokenStream {
-    let prefix = &group.value;
+fn expand_group(group: &GroupItem) -> proc_macro2::TokenStream {
+    let prefixes = &group.prefixes;
+    let middlewares = &group.middlewares;
     let statements = expand_items(&group.items);
 
+    // Pushear cada prefix al stack
+    let push_prefixes = prefixes.iter().map(|prefix| {
+        quote! {
+            __ironforge_router_builder.prefixes.push((#prefix).to_string());
+        }
+    });
+
+    // Popear en orden inverso
+    let pop_prefixes = prefixes.iter().map(|_| {
+        quote! {
+            __ironforge_router_builder.prefixes.pop();
+        }
+    });
+
+    // Pushear middlewares del group
+    let push_middlewares = middlewares.iter().map(|middleware| {
+        quote! {
+            __ironforge_router_builder.middlewares.push(::std::sync::Arc::new(|__ironforge_context| {
+                ::std::boxed::Box::pin(#middleware(__ironforge_context))
+            }));
+        }
+    });
+
+    // Popear middlewares en orden inverso
+    let pop_middlewares = middlewares.iter().map(|_| {
+        quote! {
+            __ironforge_router_builder.middlewares.pop();
+        }
+    });
+
     quote! {
-        __ironforge_router_builder.prefixes.push((#prefix).to_string());
+        #(#push_prefixes)*
+        #(#push_middlewares)*
         #(#statements)*
-        __ironforge_router_builder.prefixes.pop();
+        #(#pop_middlewares)*
+        #(#pop_prefixes)*
     }
 }
 
-fn expand_middleware(middleware: &BlockItem) -> proc_macro2::TokenStream {
-    let middleware_fn = &middleware.value;
+fn expand_middleware(middleware: &MiddlewareItem) -> proc_macro2::TokenStream {
+    let middlewares = &middleware.middlewares;
     let statements = expand_items(&middleware.items);
 
+    let push_middlewares = middlewares.iter().map(|mw| {
+        quote! {
+            __ironforge_router_builder.middlewares.push(::std::sync::Arc::new(|__ironforge_context| {
+                ::std::boxed::Box::pin(#mw(__ironforge_context))
+            }));
+        }
+    });
+
+    let pop_middlewares = middlewares.iter().map(|_| {
+        quote! {
+            __ironforge_router_builder.middlewares.pop();
+        }
+    });
+
     quote! {
-        __ironforge_router_builder.middlewares.push(::std::sync::Arc::new(|__ironforge_context| {
-            ::std::boxed::Box::pin(#middleware_fn(__ironforge_context))
-        }));
+        #(#push_middlewares)*
         #(#statements)*
-        __ironforge_router_builder.middlewares.pop();
+        #(#pop_middlewares)*
     }
 }
