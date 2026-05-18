@@ -1,7 +1,6 @@
-use crate::error::HttpError;
-use crate::error::http_error::Empty;
+use crate::error::{HttpError, http_error::Empty};
 use crate::log;
-use crate::server::router::{Controller, Middleware, RouteMap, Router};
+use crate::server::router::{Controller, Middleware, Param, Route, RouteMap, Router};
 use ahash::AHashMap;
 
 pub struct Path {
@@ -80,7 +79,9 @@ impl RouterBuilder {
         }
 
         if p.contains('*') && !p.ends_with("/*") {
-            panic!("invalid wildcard in '{}' — wildcard must be at the end as /*", p);
+            let msg = format!("invalid wildcard in '{}' — wildcard must be at the end as /*", p);
+            log::critical(&msg, None);
+            panic!("{}", msg);
         }
 
         let parts: Vec<&str> = p.split('/').collect();
@@ -115,7 +116,91 @@ impl RouterBuilder {
         ));
     }
 
-    pub fn make_map(&self) -> Result<AHashMap<String, RouteMap>, HttpError> {
+    pub fn make_router(&self) -> Result<Router, HttpError> {
+        let mut router = Router::new(self.name.clone());
+        router.name = self.name.clone();
+        router.map = self.make_map()?;
+        router.static_routes = self.make_static_routes();
+        router.dinamic_routes = self.make_dinamic_routes()?;
+        return Ok(router);
+    }
+
+    fn make_static_routes(&self) -> AHashMap<String, Route> {
+        let mut map = AHashMap::new();
+        for p in &self.paths {
+            if p.is_dinamic || p.is_wildcard {
+                continue;
+            }
+            let key = format!("{}/{}", p.path, p.method);
+            map.insert(
+                key,
+                Route {
+                    controller: p.controller.clone(),
+                    middlewares: p.middlewares.clone(),
+                    params: Vec::new(),
+                    static_routes: AHashMap::new(),
+                    dinamic_routes: None,
+                    is_dinamic: false,
+                    is_wildcard: false,
+                },
+            );
+        }
+        return map;
+    }
+
+    fn make_dinamic_routes(&self) -> Result<Route, HttpError> {
+        let mut route = Route::new();
+        for p in &self.paths {
+            if !p.is_dinamic && !p.is_wildcard {
+                continue;
+            }
+
+            let mut node: &mut Route = &mut route;
+            let mut parts: Vec<&str> = p.path.split('/').filter(|s| *s != "*").collect();
+            parts.push(p.method.as_str());
+            let len = parts.len();
+
+            for (i, part) in parts.iter().enumerate() {
+                let is_last = i == len - 1;
+                if (part.starts_with('{') && part.ends_with('}')) || part.starts_with(':') {
+                    if node.dinamic_routes.is_none() {
+                        node.dinamic_routes = Some(Box::new(Route::new()));
+                    }
+                    node = match node.dinamic_routes.as_mut() {
+                        Some(n) => n,
+                        None => {
+                            let msg = format!("dynamic route [{}] node is None", p.path.clone());
+                            log::critical(&msg, None);
+                            return Err(HttpError::internal_server_error(msg, Empty));
+                        }
+                    };
+                } else {
+                    if !node.static_routes.contains_key(&part.to_string()) {
+                        node.static_routes.insert(part.to_string(), Route::new());
+                    }
+                    node = match node.static_routes.get_mut(&part.to_string()) {
+                        Some(n) => n,
+                        None => {
+                            let msg = format!("static route [{}] node is None", p.path.clone());
+                            log::critical(&msg, None);
+                            return Err(HttpError::internal_server_error(msg, Empty));
+                        }
+                    };
+                }
+
+                if is_last {
+                    node.controller = p.controller.clone();
+                    node.middlewares = p.middlewares.clone();
+                    node.params = p.params.clone();
+                    node.is_dinamic = p.is_dinamic;
+                    node.is_wildcard = p.is_wildcard;
+                }
+            }
+        }
+        return Ok(route);
+    }
+
+    fn make_map(&self) -> Result<AHashMap<String, RouteMap>, HttpError> {
         let mut map = AHashMap::new();
 
         for path in &self.paths {
@@ -129,19 +214,13 @@ impl RouterBuilder {
                 path.name.clone(),
                 RouteMap {
                     path: path.path.clone(),
+                    method: path.method.clone(),
                     params: path.params.clone(),
                 },
             );
         }
 
         return Ok(map);
-    }
-
-    pub fn make_router(&self) -> Result<Router, HttpError> {
-        // TODO: proceso de construir el router
-        let mut router = Router::new(self.name.clone());
-        router.map = self.make_map()?;
-        return Ok(router);
     }
 
     pub fn build(&self) -> Result<Router, HttpError> {

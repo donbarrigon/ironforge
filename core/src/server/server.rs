@@ -175,7 +175,7 @@ impl Server {
 
         move |req| {
             let router = Arc::clone(&router);
-            Box::pin(async move { router.handle(req).await })
+            Box::pin(async move { router.handle(req, Arc::clone(&router)).await })
         }
     }
 }

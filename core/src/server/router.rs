@@ -29,6 +29,7 @@ pub struct Param {
 #[derive(Clone)]
 pub struct RouteMap {
     pub path: String,
+    pub method: String,
     pub params: Vec<String>,
 }
 
@@ -36,9 +37,10 @@ pub struct RouteMap {
 pub struct Route {
     pub controller: Controller,
     pub middlewares: Vec<Middleware>,
-    pub params: Vec<Param>,
+    pub params: Vec<String>,
     pub static_routes: AHashMap<String, Route>,
     pub dinamic_routes: Option<Box<Route>>,
+    pub is_dinamic: bool,
     pub is_wildcard: bool,
 }
 
@@ -50,6 +52,7 @@ impl Route {
             params: Vec::new(),
             static_routes: AHashMap::new(),
             dinamic_routes: None,
+            is_dinamic: false,
             is_wildcard: false,
         }
     }
@@ -73,7 +76,11 @@ impl Router {
         }
     }
 
-    pub async fn handle(&self, req: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
+    pub async fn handle(
+        &self,
+        req: Request<hyper::body::Incoming>,
+        router: Arc<Router>,
+    ) -> Result<Response<Full<Bytes>>, Infallible> {
         log::debug(format!("{}:{}", req.method(), req.uri().path()), None);
         Ok(Response::new(Full::new(Bytes::from("Hello, from Forge!"))))
     }
