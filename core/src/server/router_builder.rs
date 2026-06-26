@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::error::{HttpError, http_error::Empty};
 use crate::log;
 use crate::server::router::{Controller, Middleware, Param, Route, RouteMap, Router};
@@ -200,7 +202,7 @@ impl RouterBuilder {
         return Ok(route);
     }
 
-    fn make_map(&self) -> Result<AHashMap<String, RouteMap>, HttpError> {
+    fn make_map(&self) -> Result<Arc<AHashMap<String, RouteMap>>, HttpError> {
         let mut map = AHashMap::new();
 
         for path in &self.paths {
@@ -220,7 +222,7 @@ impl RouterBuilder {
             );
         }
 
-        return Ok(map);
+        return Ok(Arc::new(map));
     }
 
     pub fn build(&self) -> Result<Router, HttpError> {

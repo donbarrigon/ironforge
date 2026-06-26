@@ -16,6 +16,7 @@ use tokio_rustls::TlsAcceptor;
 
 use crate::config::env;
 use crate::server::Router;
+use crate::server::handler::handler;
 
 pub struct Server {
     addr: SocketAddr,
@@ -175,7 +176,7 @@ impl Server {
 
         move |req| {
             let router = Arc::clone(&router);
-            Box::pin(async move { router.handle(req, Arc::clone(&router)).await })
+            Box::pin(async move { handler(router, req).await })
         }
     }
 }

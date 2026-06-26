@@ -1,38 +1,38 @@
 use http_body_util::Full;
 use hyper::Response;
 use hyper::body::Bytes;
-use ironforge::server::{Context, RouterBuilder};
+use ironforge::server::{Request, RouterBuilder};
 use ironforge::{HttpError, router_build};
 
 // ─── Controllers ─────────────────────────────────────────────────────────────
 
-async fn index(_context: &mut Context) -> Result<Response<Full<Bytes>>, HttpError> {
+async fn index(_Request: &mut Request) -> Result<Response<Full<Bytes>>, HttpError> {
     Ok(Response::new(Full::new(Bytes::from("ok"))))
 }
 
 // ─── Middlewares ──────────────────────────────────────────────────────────────
 
-async fn auth(_context: &mut Context) -> Result<(), HttpError> {
+async fn auth(_Request: &mut Request) -> Result<(), HttpError> {
     Ok(())
 }
 
-async fn admin(_context: &mut Context) -> Result<(), HttpError> {
+async fn admin(_Request: &mut Request) -> Result<(), HttpError> {
     Ok(())
 }
 
-async fn rate_limit(_context: &mut Context) -> Result<(), HttpError> {
+async fn rate_limit(_Request: &mut Request) -> Result<(), HttpError> {
     Ok(())
 }
 
-async fn throttle(_context: &mut Context) -> Result<(), HttpError> {
+async fn throttle(_Request: &mut Request) -> Result<(), HttpError> {
     Ok(())
 }
 
-async fn log(_context: &mut Context) -> Result<(), HttpError> {
+async fn log(_Request: &mut Request) -> Result<(), HttpError> {
     Ok(())
 }
 
-async fn cors(_context: &mut Context) -> Result<(), HttpError> {
+async fn cors(_Request: &mut Request) -> Result<(), HttpError> {
     Ok(())
 }
 

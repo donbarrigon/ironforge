@@ -2,8 +2,10 @@ mod server;
 pub use server::Server;
 pub use server::server_start;
 
-mod context;
-pub use context::Context;
+mod request;
+pub use request::Request;
+
+pub mod handler;
 
 mod router;
 pub use router::Router;

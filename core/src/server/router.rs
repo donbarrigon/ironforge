@@ -1,23 +1,21 @@
 use crate::error::HttpError;
-use crate::log;
-use crate::server::context::Context;
+use crate::server::request::Request;
 use ahash::AHashMap;
 use http_body_util::Full;
+use hyper::Response;
 use hyper::body::Bytes;
-use hyper::{Request, Response};
-use std::convert::Infallible;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
 pub type ControllerFuture<'a> = Pin<Box<dyn Future<Output = Result<Response<Full<Bytes>>, HttpError>> + Send + 'a>>;
-pub type Controller = Arc<dyn for<'a> Fn(&'a mut Context) -> ControllerFuture<'a> + Send + Sync>;
+pub type Controller = Arc<dyn for<'a> Fn(&'a mut Request) -> ControllerFuture<'a> + Send + Sync>;
 
 pub type MiddlewareFuture<'a> = Pin<Box<dyn Future<Output = Result<(), HttpError>> + Send + 'a>>;
-pub type Middleware = Arc<dyn for<'a> Fn(&'a mut Context) -> MiddlewareFuture<'a> + Send + Sync>;
+pub type Middleware = Arc<dyn for<'a> Fn(&'a mut Request) -> MiddlewareFuture<'a> + Send + Sync>;
 
-async fn not_found(_c: &mut Context) -> Result<Response<Full<Bytes>>, HttpError> {
-    return Ok(Response::new(Full::new(Bytes::from(""))));
+async fn not_found(_c: &mut Request) -> Result<Response<Full<Bytes>>, HttpError> {
+    return Ok(Response::new(Full::new(Bytes::from("404"))));
 }
 
 #[derive(Clone)]
@@ -63,7 +61,7 @@ pub struct Router {
     pub name: String,
     pub static_routes: AHashMap<String, Route>,
     pub dinamic_routes: Route,
-    pub map: AHashMap<String, RouteMap>,
+    pub map: Arc<AHashMap<String, RouteMap>>,
 }
 
 impl Router {
@@ -72,16 +70,7 @@ impl Router {
             name: name.into(),
             static_routes: AHashMap::new(),
             dinamic_routes: Route::new(),
-            map: AHashMap::new(),
+            map: Arc::new(AHashMap::new()),
         }
-    }
-
-    pub async fn handle(
-        &self,
-        req: Request<hyper::body::Incoming>,
-        router: Arc<Router>,
-    ) -> Result<Response<Full<Bytes>>, Infallible> {
-        log::debug(format!("{}:{}", req.method(), req.uri().path()), None);
-        Ok(Response::new(Full::new(Bytes::from("Hello, from Forge!"))))
     }
 }
