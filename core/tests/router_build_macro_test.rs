@@ -1,7 +1,7 @@
 use http_body_util::Full;
 use hyper::Response;
 use hyper::body::Bytes;
-use ironforge::server::{Request, RouterBuilder};
+use ironforge::cluster::{Request, RouterBuilder};
 use ironforge::{HttpError, router_build};
 
 // ─── Controllers ─────────────────────────────────────────────────────────────
@@ -56,7 +56,7 @@ fn no_trailing_slash(builder: &RouterBuilder) {
     }
 }
 
-fn find_route<'a>(builder: &'a RouterBuilder, method: &str, path: &str) -> &'a ironforge::server::Path {
+fn find_route<'a>(builder: &'a RouterBuilder, method: &str, path: &str) -> &'a ironforge::cluster::Path {
     builder
         .paths
         .iter()

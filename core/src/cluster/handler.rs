@@ -7,7 +7,7 @@ use hyper::{Response, body::Bytes};
 use crate::{
     HttpError,
     error::Empty,
-    server::{
+    cluster::{
         Request, Router,
         router::{Param, Route, RouteMap},
     },
@@ -25,10 +25,6 @@ pub async fn handler(
         return run_route(req, vec![], &route, Arc::clone(&router.map)).await;
     }
 
-    // TODO: Buscar en rutas dinámicas
-    // if let Some((route, params)) = router.match_dynamic(&method, &path) {
-    //     return run_route(req, params, &route, Arc::clone(&router.map)).await;
-    // }
     Ok(HttpError::not_found("Not found", Empty).response())
 }
 

@@ -15,10 +15,10 @@ use tokio::sync::oneshot;
 use tokio_rustls::TlsAcceptor;
 
 use crate::config::env;
-use crate::server::Router;
-use crate::server::handler::handler;
+use crate::cluster::Router;
+use crate::cluster::handler::handler;
 
-pub struct Server {
+pub struct Cluster {
     addr: SocketAddr,
     shutdown_sender: Option<oneshot::Sender<()>>,
     https: bool,
@@ -26,7 +26,7 @@ pub struct Server {
     router: Router,
 }
 
-impl Server {
+impl Cluster {
     pub fn new(host: &str, port: u16, router: Router) -> Self {
         let _ = rustls::crypto::ring::default_provider().install_default();
 
@@ -69,7 +69,6 @@ impl Server {
         let handler = self.handler();
 
         if self.https {
-            // ─── HTTPS — HTTP/2 con TLS ──────────────────────────────────────
             println!("forge corriendo en https://{}", self.addr);
 
             let tls_acceptor = if self.auto_cert {
@@ -97,7 +96,6 @@ impl Server {
 
                             let io = TokioIo::new(tls_stream);
 
-                            // serve_connection_with_upgrades mantiene la conexión abierta
                             if let Err(e) = auto::Builder::new(TokioExecutor::new())
                                 .serve_connection_with_upgrades(io, service_fn(handler))
                                 .await
@@ -108,18 +106,17 @@ impl Server {
                     }
 
                     _ = &mut rx => {
-                        println!("servidor {} detenido", self.addr);
+                        println!("cluster {} detenido", self.addr);
                         break;
                     }
 
                     _ = tokio::signal::ctrl_c() => {
-                        println!("servidor {} detenido por Ctrl+C", self.addr);
+                        println!("cluster {} detenido por Ctrl+C", self.addr);
                         break;
                     }
                 }
             }
         } else {
-            // ─── HTTP — HTTP/1.1 sin TLS ─────────────────────────────────────
             println!("forge corriendo en http://{}", self.addr);
 
             loop {
@@ -130,7 +127,6 @@ impl Server {
                         let handler     = handler.clone();
 
                         tokio::spawn(async move {
-                            // keep_alive(true) mantiene la conexión abierta en HTTP/1.1
                             if let Err(e) = http1::Builder::new()
                                 .keep_alive(true)
                                 .serve_connection(io, service_fn(handler))
@@ -142,12 +138,12 @@ impl Server {
                     }
 
                     _ = &mut rx => {
-                        println!("servidor {} detenido", self.addr);
+                        println!("cluster {} detenido", self.addr);
                         break;
                     }
 
                     _ = tokio::signal::ctrl_c() => {
-                        println!("servidor {} detenido por Ctrl+C", self.addr);
+                        println!("cluster {} detenido por Ctrl+C", self.addr);
                         break;
                     }
                 }
@@ -181,9 +177,7 @@ impl Server {
     }
 }
 
-// genera un certificado autofirmado para desarrollo
 fn build_tls_acceptor() -> Result<TlsAcceptor, Box<dyn std::error::Error>> {
-    // genera certificado autofirmado con rcgen
     let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()])?;
 
     let cert_der = rustls::pki_types::CertificateDer::from(cert.cert);
@@ -193,7 +187,6 @@ fn build_tls_acceptor() -> Result<TlsAcceptor, Box<dyn std::error::Error>> {
         .with_no_client_auth()
         .with_single_cert(vec![cert_der], key_der)?;
 
-    // ALPN — negocia h2 (HTTP/2) o http/1.1 automáticamente
     let mut config = config;
     config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
 
@@ -219,14 +212,14 @@ fn get_tls_acceptor() -> Result<TlsAcceptor, Box<dyn std::error::Error>> {
     return Ok(TlsAcceptor::from(Arc::new(config)));
 }
 
-pub async fn server_start() -> Result<(), Box<dyn std::error::Error>> {
+pub async fn cluster_start() -> Result<(), Box<dyn std::error::Error>> {
     crate::config::init()?;
 
     let config = env();
     let mut handles = vec![];
 
     for server_env in &config.server {
-        let mut server = Server::new(&server_env.host, server_env.port, Router::new("test"));
+        let mut server = Cluster::new(&server_env.host, server_env.port, Router::new("test"));
 
         if server_env.https {
             server.enable_https();
@@ -236,17 +229,15 @@ pub async fn server_start() -> Result<(), Box<dyn std::error::Error>> {
             server.enable_auto_cert();
         }
 
-        // cada servidor corre en su propia tarea
         let handle = tokio::spawn(async move {
             if let Err(e) = server.listen().await {
-                eprintln!("server error: {:?}", e);
+                eprintln!("cluster error: {:?}", e);
             }
         });
 
         handles.push(handle);
     }
 
-    // espera a que todos terminen
     for handle in handles {
         handle.await?;
     }

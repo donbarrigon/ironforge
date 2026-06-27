@@ -2,7 +2,7 @@ use ahash::AHashMap;
 use hyper::body::Incoming;
 use std::sync::Arc;
 
-use crate::server::{
+use crate::cluster::{
     Router,
     router::{Param, RouteMap},
 };

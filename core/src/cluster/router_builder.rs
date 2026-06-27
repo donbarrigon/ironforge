@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use crate::cluster::router::{Controller, Middleware, Param, Route, RouteMap, Router};
 use crate::error::{HttpError, http_error::Empty};
 use crate::log;
-use crate::server::router::{Controller, Middleware, Param, Route, RouteMap, Router};
 use ahash::AHashMap;
 
 pub struct Path {

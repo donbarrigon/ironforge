@@ -1,24 +1,22 @@
+use crate::cluster::request::Request;
 use crate::error::HttpError;
-use crate::server::handler::context::Context;
 use ahash::AHashMap;
 use http_body_util::Full;
-use hyper::{Response, body::Bytes};
+use hyper::Response;
+use hyper::body::Bytes;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-// === Types ==================================================================
+pub type ControllerFuture<'a> = Pin<Box<dyn Future<Output = Result<Response<Full<Bytes>>, HttpError>> + Send + 'a>>;
+pub type Controller = Arc<dyn for<'a> Fn(&'a mut Request) -> ControllerFuture<'a> + Send + Sync>;
 
-pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+pub type MiddlewareFuture<'a> = Pin<Box<dyn Future<Output = Result<(), HttpError>> + Send + 'a>>;
+pub type Middleware = Arc<dyn for<'a> Fn(&'a mut Request) -> MiddlewareFuture<'a> + Send + Sync>;
 
-/// Tanto Controller como Middleware usan el mismo tipo base
-pub type Handler = Arc<dyn for<'a> Fn(&'a mut Context) -> BoxFuture<'a, Result<(), HttpError>> + Send + Sync>;
-
-// Alias semánticos (mismo tipo, diferente nombre)
-pub type Controller = Handler;
-pub type Middleware = Handler;
-
-// === Param ==================================================================
+async fn not_found(_c: &mut Request) -> Result<Response<Full<Bytes>>, HttpError> {
+    return Ok(Response::new(Full::new(Bytes::from("404"))));
+}
 
 #[derive(Clone)]
 pub struct Param {
@@ -26,16 +24,12 @@ pub struct Param {
     pub value: String,
 }
 
-// === RouteMap ===============================================================
-
 #[derive(Clone)]
 pub struct RouteMap {
     pub path: String,
     pub method: String,
     pub params: Vec<String>,
 }
-
-// === Route ==================================================================
 
 #[derive(Clone)]
 pub struct Route {
@@ -61,12 +55,6 @@ impl Route {
         }
     }
 }
-
-async fn not_found(c: &mut Context) -> Result<(), HttpError> {
-    Err(HttpError::not_found("Route not found", crate::error::Empty))
-}
-
-// === Router =================================================================
 
 #[derive(Clone)]
 pub struct Router {
