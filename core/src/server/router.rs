@@ -1,24 +1,24 @@
 use crate::error::HttpError;
-use crate::server::handler::context::Context;
+use crate::handler::context::Context;
 use ahash::AHashMap;
-use http_body_util::Full;
-use hyper::{Response, body::Bytes};
+use hyper::body::Bytes;
+use ironforge_macros::controller;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-// === Types ==================================================================
+// === Types =====================================================
 
-pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+// pub type ControllerFuture<'a> = Pin<Box<dyn Future<Output = Result<Response<Full<Bytes>>, HttpError>> + Send + 'a>>;
+// pub type Controller = Arc<dyn for<'a> Fn(&'a mut Request) -> ControllerFuture<'a> + Send + Sync>;
+
+pub type BoxFuture<'a> = Pin<Box<dyn Future<Output = Result<(), HttpError>> + Send + 'a>>;
 
 /// Tanto Controller como Middleware usan el mismo tipo base
-pub type Handler = Arc<dyn for<'a> Fn(&'a mut Context) -> BoxFuture<'a, Result<(), HttpError>> + Send + Sync>;
+pub type Controller = Arc<dyn for<'a> Fn(&'a mut Context) -> BoxFuture<'a> + Send + Sync>;
+pub type Middleware = Controller;
 
-// Alias semánticos (mismo tipo, diferente nombre)
-pub type Controller = Handler;
-pub type Middleware = Handler;
-
-// === Param ==================================================================
+// === Params ====================================================
 
 #[derive(Clone)]
 pub struct Param {
@@ -26,7 +26,32 @@ pub struct Param {
     pub value: String,
 }
 
-// === RouteMap ===============================================================
+pub type Params = Vec<Param>;
+
+pub trait QueryParams {
+    fn require(&self, name: &str) -> Result<&str, HttpError>;
+    fn get(&self, name: &str) -> Option<&str>;
+    fn get_or<'a>(&'a self, name: &str, default: &'a str) -> &'a str;
+}
+
+impl QueryParams for Params {
+    fn require(&self, name: &str) -> Result<&str, HttpError> {
+        self.iter()
+            .find(|p| p.name == name)
+            .map(|p| p.value.as_str())
+            .ok_or_else(|| HttpError::bad_request(format!("missing param `{}`", name)))
+    }
+
+    fn get(&self, name: &str) -> Option<&str> {
+        self.iter().find(|p| p.name == name).map(|p| p.value.as_str())
+    }
+
+    fn get_or<'a>(&'a self, name: &str, default: &'a str) -> &'a str {
+        self.get(name).unwrap_or(default)
+    }
+}
+
+// === RouteMap ==================================================
 
 #[derive(Clone)]
 pub struct RouteMap {
@@ -35,7 +60,7 @@ pub struct RouteMap {
     pub params: Vec<String>,
 }
 
-// === Route ==================================================================
+// === Route =====================================================
 
 #[derive(Clone)]
 pub struct Route {
@@ -51,7 +76,7 @@ pub struct Route {
 impl Route {
     pub fn new() -> Self {
         Self {
-            controller: Arc::new(|c| Box::pin(not_found(c))),
+            controller: Arc::new(|c| Box::pin(default_not_found(c))),
             middlewares: Vec::new(),
             params: Vec::new(),
             static_routes: AHashMap::new(),
@@ -62,11 +87,7 @@ impl Route {
     }
 }
 
-async fn not_found(c: &mut Context) -> Result<(), HttpError> {
-    Err(HttpError::not_found("Route not found", crate::error::Empty))
-}
-
-// === Router =================================================================
+// === Router ====================================================
 
 #[derive(Clone)]
 pub struct Router {
@@ -74,6 +95,7 @@ pub struct Router {
     pub static_routes: AHashMap<String, Route>,
     pub dinamic_routes: Route,
     pub map: Arc<AHashMap<String, RouteMap>>,
+    pub not_found_controller: Controller,
 }
 
 impl Router {
@@ -83,6 +105,16 @@ impl Router {
             static_routes: AHashMap::new(),
             dinamic_routes: Route::new(),
             map: Arc::new(AHashMap::new()),
+            not_found_controller: Arc::new(|c| Box::pin(default_not_found(c))),
         }
     }
+
+    pub fn set_not_found(mut self, controller: Controller) -> Self {
+        self.not_found_controller = controller;
+        self
+    }
+}
+
+pub async fn default_not_found(c: &mut Context) -> Result<(), HttpError> {
+    c.reply(404, Bytes::new())
 }
