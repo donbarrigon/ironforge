@@ -1,6 +1,5 @@
 use crate::error::HttpError;
 use crate::server::router::Param;
-use futures::channel::mpsc::TryRecvError::Empty;
 use http_body_util::{BodyExt, Full, StreamBody, combinators::BoxBody};
 use hyper::body::{Bytes, Frame, Incoming};
 use hyper::{Response, header, http};
@@ -13,7 +12,7 @@ pub type BoxBodyBytes = BoxBody<Bytes, HttpError>;
 
 // === Modo de respuesta interno =================================
 
-enum ResponseMode {
+pub(crate) enum ResponseMode {
     /// Respuesta completa en memoria (JSON, MessagePack, HTML)
     Buffered(Response<Full<Bytes>>),
 
@@ -29,7 +28,7 @@ enum ResponseMode {
 
 pub struct Context {
     pub req: hyper::Request<Incoming>,
-    pub res: Option<ResponseMode>,
+    pub(crate) res: Option<ResponseMode>,
     pub params: Vec<Param>,
 }
 

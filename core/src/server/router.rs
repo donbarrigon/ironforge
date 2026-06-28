@@ -2,7 +2,6 @@ use crate::error::HttpError;
 use crate::handler::context::Context;
 use ahash::AHashMap;
 use hyper::body::Bytes;
-use ironforge_macros::controller;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
