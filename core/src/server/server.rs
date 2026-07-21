@@ -10,7 +10,7 @@ use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tokio_rustls::TlsAcceptor;
 
-use crate::server::handler::handler;
+use crate::server::dispatch::dispatch;
 use crate::server::router::Router;
 
 // ─── Router singleton ──────────────────────────────────────────
@@ -106,7 +106,7 @@ impl Server {
                             let io = TokioIo::new(tls_stream);
 
                             if let Err(e) = auto::Builder::new(TokioExecutor::new())
-                                .serve_connection_with_upgrades(io, service_fn(handler))
+                                .serve_connection_with_upgrades(io, service_fn(dispatch))
                                 .await
                             {
                                 eprintln!("error en conexión HTTPS: {:?}", e);
@@ -137,7 +137,7 @@ impl Server {
                         tokio::spawn(async move {
                             if let Err(e) = http1::Builder::new()
                                 .keep_alive(true)
-                                .serve_connection(io, service_fn(handler))
+                                .serve_connection(io, service_fn(dispatch))
                                 .await
                             {
                                 eprintln!("error en conexión HTTP: {:?}", e);

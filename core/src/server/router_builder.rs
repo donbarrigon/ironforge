@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::error::HttpError;
 use crate::log;
-use crate::server::router::{Controller, Middleware, Route, RouteMap, Router};
+use crate::server::router::{Controller, Middleware, Router, Segment, default_not_found};
 use ahash::AHashMap;
 
 pub struct Path {
@@ -58,6 +58,7 @@ pub struct RouterBuilder {
     pub paths: Vec<Path>,
     pub prefixes: Vec<String>,
     pub middlewares: Vec<Middleware>,
+    pub not_found: Controller,
 }
 
 impl RouterBuilder {
@@ -67,7 +68,15 @@ impl RouterBuilder {
             paths: Vec::new(),
             prefixes: Vec::new(),
             middlewares: Vec::new(),
+            not_found: Arc::new(|c| Box::pin(default_not_found(c))),
         };
+    }
+
+    /// Configura el controller que se usará cuando no matchee ninguna
+    /// ruta. Si nunca se llama, queda el default_not_found.
+    pub fn not_found(&mut self, controller: Controller) -> &mut Self {
+        self.not_found = controller;
+        return self;
     }
 
     pub fn add_path(&mut self, method: String, path: String, controller_name: String, controller: Controller) {
@@ -119,15 +128,14 @@ impl RouterBuilder {
     }
 
     pub fn make_router(&self) -> Result<Router, HttpError> {
-        let mut router = Router::new(self.name.clone());
-        router.name = self.name.clone();
+        let mut router = Router::new(self.name.clone(), self.not_found.clone());
         router.map = self.make_map()?;
         router.static_routes = self.make_static_routes();
-        router.dinamic_routes = self.make_dinamic_routes()?;
+        router.dinamic_routes = self.make_dinamic_routes(self.not_found.clone())?;
         return Ok(router);
     }
 
-    fn make_static_routes(&self) -> AHashMap<String, Route> {
+    fn make_static_routes(&self) -> AHashMap<String, Segment> {
         let mut map = AHashMap::new();
         for p in &self.paths {
             if p.is_dinamic || p.is_wildcard {
@@ -136,7 +144,7 @@ impl RouterBuilder {
             let key = format!("{}/{}", p.path, p.method);
             map.insert(
                 key,
-                Route {
+                Segment {
                     controller: p.controller.clone(),
                     middlewares: p.middlewares.clone(),
                     params: Vec::new(),
@@ -150,14 +158,14 @@ impl RouterBuilder {
         return map;
     }
 
-    fn make_dinamic_routes(&self) -> Result<Route, HttpError> {
-        let mut route = Route::new();
+    fn make_dinamic_routes(&self, not_found: Controller) -> Result<Segment, HttpError> {
+        let mut route = Segment::new(not_found.clone());
         for p in &self.paths {
             if !p.is_dinamic && !p.is_wildcard {
                 continue;
             }
 
-            let mut node: &mut Route = &mut route;
+            let mut node: &mut Segment = &mut route;
             let mut parts: Vec<&str> = p.path.split('/').filter(|s| *s != "*").collect();
             parts.push(p.method.as_str());
             let len = parts.len();
@@ -166,7 +174,7 @@ impl RouterBuilder {
                 let is_last = i == len - 1;
                 if (part.starts_with('{') && part.ends_with('}')) || part.starts_with(':') {
                     if node.dinamic_routes.is_none() {
-                        node.dinamic_routes = Some(Box::new(Route::new()));
+                        node.dinamic_routes = Some(Box::new(Segment::new(not_found.clone())));
                     }
                     node = match node.dinamic_routes.as_mut() {
                         Some(n) => n,
@@ -178,7 +186,8 @@ impl RouterBuilder {
                     };
                 } else {
                     if !node.static_routes.contains_key(&part.to_string()) {
-                        node.static_routes.insert(part.to_string(), Route::new());
+                        node.static_routes
+                            .insert(part.to_string(), Segment::new(not_found.clone()));
                     }
                     node = match node.static_routes.get_mut(&part.to_string()) {
                         Some(n) => n,
@@ -202,7 +211,9 @@ impl RouterBuilder {
         return Ok(route);
     }
 
-    fn make_map(&self) -> Result<Arc<AHashMap<String, RouteMap>>, HttpError> {
+    /// Genera el mapa de nombres de ruta -> "METHOD:/path/con/:params"
+    /// en un solo string, ej: "GET:/api/users/:id/show"
+    fn make_map(&self) -> Result<Arc<AHashMap<String, String>>, HttpError> {
         let mut map = AHashMap::new();
 
         for path in &self.paths {
@@ -212,14 +223,24 @@ impl RouterBuilder {
                 return Err(HttpError::conflict(msg));
             }
 
-            map.insert(
-                path.name.clone(),
-                RouteMap {
-                    path: path.path.clone(),
-                    method: path.method.clone(),
-                    params: path.params.clone(),
-                },
-            );
+            let normalized_path = path
+                .path
+                .split('/')
+                .map(|part| {
+                    if (part.starts_with('{') && part.ends_with('}')) || part.starts_with(':') {
+                        let name = part
+                            .trim_start_matches(':')
+                            .trim_start_matches('{')
+                            .trim_end_matches('}');
+                        format!(":{}", name)
+                    } else {
+                        part.to_string()
+                    }
+                })
+                .collect::<Vec<String>>()
+                .join("/");
+
+            map.insert(path.name.clone(), format!("{}:/{}", path.method, normalized_path));
         }
 
         return Ok(Arc::new(map));

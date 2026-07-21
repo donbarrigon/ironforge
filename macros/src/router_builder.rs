@@ -55,6 +55,7 @@ enum RouterItem {
     Route(RouteItem),
     Group(GroupItem),
     Middleware(MiddlewareItem),
+    NotFound(NotFoundItem),
 }
 
 struct RouteItem {
@@ -76,6 +77,10 @@ struct MiddlewareItem {
     items: Vec<RouterItem>,
 }
 
+struct NotFoundItem {
+    controller: ExprPath,
+}
+
 // ─── Parsers ──────────────────────────────────────────────────────────────────
 
 fn parse_items(input: ParseStream<'_>) -> Result<Vec<RouterItem>> {
@@ -88,11 +93,12 @@ fn parse_items(input: ParseStream<'_>) -> Result<Vec<RouterItem>> {
         let item = match item_name_string.as_str() {
             "group" => RouterItem::Group(parse_group(input)?),
             "middleware" => RouterItem::Middleware(parse_middleware(input)?),
+            "not_found" => RouterItem::NotFound(parse_not_found(item_name, input)?),
             method if HTTP_METHODS.contains(&method) => RouterItem::Route(parse_route(item_name, input)?),
             _ => {
                 return Err(syn::Error::new_spanned(
                     item_name,
-                    "expected an HTTP method, group(...) { ... }, or middleware(...) { ... }",
+                    "expected an HTTP method, group(...) { ... }, middleware(...) { ... }, or not_found(...)",
                 ));
             }
         };
@@ -222,6 +228,28 @@ fn parse_middleware(input: ParseStream<'_>) -> Result<MiddlewareItem> {
     Ok(MiddlewareItem { middlewares, items })
 }
 
+fn parse_not_found(kw: Ident, input: ParseStream<'_>) -> Result<NotFoundItem> {
+    // not_found(mi_handler_404)
+    let content;
+    parenthesized!(content in input);
+
+    let controller = match content.parse::<Expr>()? {
+        Expr::Path(controller) => controller,
+        expr => {
+            return Err(syn::Error::new_spanned(
+                expr,
+                "not_found(...) expects a single function path",
+            ));
+        }
+    };
+
+    if !content.is_empty() {
+        return Err(syn::Error::new_spanned(kw, "not_found(...) takes exactly one argument"));
+    }
+
+    Ok(NotFoundItem { controller })
+}
+
 // ─── Expanders ────────────────────────────────────────────────────────────────
 
 fn expand_items(items: &[RouterItem]) -> Vec<proc_macro2::TokenStream> {
@@ -233,6 +261,7 @@ fn expand_item(item: &RouterItem) -> proc_macro2::TokenStream {
         RouterItem::Route(route) => expand_route(route),
         RouterItem::Group(group) => expand_group(group),
         RouterItem::Middleware(middleware) => expand_middleware(middleware),
+        RouterItem::NotFound(not_found) => expand_not_found(not_found),
     }
 }
 
@@ -348,5 +377,15 @@ fn expand_middleware(middleware: &MiddlewareItem) -> proc_macro2::TokenStream {
         #(#push_middlewares)*
         #(#statements)*
         #(#pop_middlewares)*
+    }
+}
+
+fn expand_not_found(not_found: &NotFoundItem) -> proc_macro2::TokenStream {
+    let controller = &not_found.controller;
+
+    quote! {
+        __ironforge_router_builder.not_found(::std::sync::Arc::new(|__ironforge_context| {
+            ::std::boxed::Box::pin(#controller(__ironforge_context))
+        }));
     }
 }
