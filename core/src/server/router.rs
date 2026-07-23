@@ -1,7 +1,6 @@
 use crate::error::HttpError;
 use crate::handler::context::Context;
 use ahash::AHashMap;
-use hyper::body::Bytes;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -107,5 +106,6 @@ impl Router {
 }
 
 pub async fn default_not_found(c: &mut Context) -> Result<(), HttpError> {
-    c.reply(404, Bytes::new())
+    // c.reply(404, Bytes::new())
+    Ok(())
 }

@@ -14,6 +14,7 @@ pub struct AppEnv {
     pub name: String,
     pub debug: bool,
     pub url: String,
+    pub locale: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,5 +57,6 @@ pub fn load_env() -> Result<(), Box<dyn std::error::Error>> {
 pub fn init() -> Result<(), Box<dyn std::error::Error>> {
     load_env()?;
     crate::log::init();
+    crate::handler::context::init();
     return Ok(());
 }

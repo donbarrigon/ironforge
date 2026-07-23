@@ -1,4 +1,4 @@
-use crate::config::env;
+use crate::{config::env, handler::ResBody};
 use backtrace::Backtrace;
 use http_body_util::Full;
 use hyper::{Response, StatusCode, body::Bytes, header};
@@ -75,26 +75,26 @@ impl HttpError {
 
     // ─── Response ────────────────────────────────────────────────────────────
 
-    pub fn response(&self) -> Response<Full<Bytes>> {
+    pub fn response(&self) -> Response<ResBody> {
         let bytes = rmp_serde::to_vec_named(self)
             .unwrap_or_else(|e| format!(r#"{{"error":"Msgpack serialization error: {}"}}"#, e).into_bytes());
 
         Response::builder()
             .status(self.status)
             .header(header::CONTENT_TYPE, "application/msgpack")
-            .body(Full::new(Bytes::from(bytes)))
-            .unwrap_or_else(|_| Response::new(Full::new(Bytes::new())))
+            .body(ResBody::full(Bytes::from(bytes)))
+            .unwrap_or_else(|_| Response::new(ResBody::full(Bytes::new())))
     }
 
-    pub fn response_json(&self) -> Response<Full<Bytes>> {
+    pub fn response_json(&self) -> Response<ResBody> {
         let bytes = serde_json::to_vec(self)
             .unwrap_or_else(|e| format!(r#"{{"error":"Json serialization error: {}"}}"#, e).into_bytes());
 
         Response::builder()
             .status(self.status)
             .header(header::CONTENT_TYPE, "application/json")
-            .body(Full::new(Bytes::from(bytes)))
-            .unwrap_or_else(|_| Response::new(Full::new(Bytes::new())))
+            .body(ResBody::full(Bytes::from(bytes)))
+            .unwrap_or_else(|_| Response::new(ResBody::full(Bytes::new())))
     }
 
     // ─── 4xx Client Errors ───────────────────────────────────────────────────
