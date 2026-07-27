@@ -56,7 +56,7 @@ pub fn load_env() -> Result<(), Box<dyn std::error::Error>> {
 
 pub fn init() -> Result<(), Box<dyn std::error::Error>> {
     load_env()?;
-    crate::log::init();
-    crate::handler::context::init();
+    crate::log::init(); // inicializa el logger
+    crate::handler::headers::init(); // inicializa los bytes de fallback
     return Ok(());
 }
