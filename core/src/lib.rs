@@ -16,6 +16,7 @@ pub use config::env;
 pub use config::load_env;
 
 pub mod handler;
+pub mod validator;
 
 pub mod lang;
 

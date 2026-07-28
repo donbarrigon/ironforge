@@ -9,8 +9,8 @@ use crate::{
     handler::{
         BoxStream, ResBody,
         headers::{self, ContentType},
-        validator::Validator,
     },
+    validator::Validator,
 };
 
 pub struct Context {
