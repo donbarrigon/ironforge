@@ -1,3 +1,3 @@
-pub mod http_error;
+pub mod forge_error;
 
-pub use http_error::HttpError;
+pub use forge_error::ForgeError;

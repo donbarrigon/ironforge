@@ -41,7 +41,7 @@ pub fn controller_macro(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let body = &input.block;
 
     let expanded = quote! {
-        #vis async fn #name(#inputs) -> ::std::result::Result<(), HttpError> {
+        #vis async fn #name(#inputs) -> ::std::result::Result<(), ::ironforge::ForgeError> {
             #body
         }
     };
@@ -88,7 +88,7 @@ pub fn middleware_macro(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let body = &input.block;
 
     let expanded = quote! {
-        #vis async fn #name(#inputs) -> ::std::result::Result<(), HttpError> {
+        #vis async fn #name(#inputs) -> ::std::result::Result<(), ::ironforge::ForgeError> {
             #body
         }
     };

@@ -8,5 +8,5 @@ use crate::handler::context::Context;
 pub async fn dispatch(req: Request<Incoming>) -> Result<Response<ResBody>, Infallible> {
     let mut c = Context::new(req);
 
-    Ok(c.w)
+    Ok(c.into_response())
 }

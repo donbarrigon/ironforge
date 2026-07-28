@@ -8,7 +8,7 @@ pub use server::Server;
 // pub use cluster::cluster_start;
 
 pub mod error;
-pub use error::HttpError;
+pub use error::ForgeError;
 
 pub mod config;
 pub use config::Env;

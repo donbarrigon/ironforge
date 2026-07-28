@@ -5,7 +5,7 @@
 // use hyper::{Response, body::Bytes};
 
 // use crate::{
-//     HttpError,
+//     ForgeError,
 //     error::Empty,
 //     cluster::{
 //         Request, Router,
@@ -25,7 +25,7 @@
 //         return run_route(req, vec![], &route, Arc::clone(&router.map)).await;
 //     }
 
-//     Ok(HttpError::not_found("Not found", Empty).response())
+//     Ok(ForgeError::not_found("Not found", Empty).response())
 // }
 
 // async fn run_route(

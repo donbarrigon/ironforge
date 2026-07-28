@@ -1,5 +1,5 @@
 // use crate::cluster::request::Request;
-// use crate::error::HttpError;
+// use crate::error::ForgeError;
 // use ahash::AHashMap;
 // use http_body_util::Full;
 // use hyper::Response;
@@ -8,13 +8,13 @@
 // use std::pin::Pin;
 // use std::sync::Arc;
 
-// pub type ControllerFuture<'a> = Pin<Box<dyn Future<Output = Result<Response<Full<Bytes>>, HttpError>> + Send + 'a>>;
+// pub type ControllerFuture<'a> = Pin<Box<dyn Future<Output = Result<Response<Full<Bytes>>, ForgeError>> + Send + 'a>>;
 // pub type Controller = Arc<dyn for<'a> Fn(&'a mut Request) -> ControllerFuture<'a> + Send + Sync>;
 
-// pub type MiddlewareFuture<'a> = Pin<Box<dyn Future<Output = Result<(), HttpError>> + Send + 'a>>;
+// pub type MiddlewareFuture<'a> = Pin<Box<dyn Future<Output = Result<(), ForgeError>> + Send + 'a>>;
 // pub type Middleware = Arc<dyn for<'a> Fn(&'a mut Request) -> MiddlewareFuture<'a> + Send + Sync>;
 
-// async fn not_found(_c: &mut Request) -> Result<Response<Full<Bytes>>, HttpError> {
+// async fn not_found(_c: &mut Request) -> Result<Response<Full<Bytes>>, ForgeError> {
 //     return Ok(Response::new(Full::new(Bytes::from("404"))));
 // }
 

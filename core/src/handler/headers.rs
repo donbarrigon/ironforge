@@ -3,7 +3,7 @@ use hyper::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::Serialize;
 use std::sync::OnceLock;
 
-use crate::error::HttpError;
+use crate::error::ForgeError;
 
 // ─── ContentType ────────────────────────────────────────────────────────────
 
@@ -67,14 +67,14 @@ impl ContentType {
 
 /// Agrega o actualiza un header. Si ya tiene exactamente ese valor,
 /// no hace nada (evita un insert innecesario).
-pub fn set(map: &mut HeaderMap, name: HeaderName, value: &str) -> Result<(), HttpError> {
+pub fn set(map: &mut HeaderMap, name: HeaderName, value: &str) -> Result<(), ForgeError> {
     if let Some(current) = map.get(&name) {
         if current.as_bytes() == value.as_bytes() {
             return Ok(());
         }
     }
     let hv = HeaderValue::from_str(value)
-        .map_err(|e| HttpError::bad_request(format!("invalid header value for '{}'", name)).caused_by(e))?;
+        .map_err(|e| ForgeError::bad_request(format!("invalid header value for '{}'", name)).caused_by(e))?;
     map.insert(name, hv);
     Ok(())
 }

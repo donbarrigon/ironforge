@@ -1,7 +1,7 @@
 // use std::sync::Arc;
 
 // use crate::cluster::router::{Controller, Middleware, Route, RouteMap, Router};
-// use crate::error::HttpError;
+// use crate::error::ForgeError;
 // use crate::log;
 // use ahash::AHashMap;
 
@@ -118,7 +118,7 @@
 //         ));
 //     }
 
-//     pub fn make_router(&self) -> Result<Router, HttpError> {
+//     pub fn make_router(&self) -> Result<Router, ForgeError> {
 //         let mut router = Router::new(self.name.clone());
 //         router.name = self.name.clone();
 //         router.map = self.make_map()?;
@@ -150,7 +150,7 @@
 //         return map;
 //     }
 
-//     fn make_dinamic_routes(&self) -> Result<Route, HttpError> {
+//     fn make_dinamic_routes(&self) -> Result<Route, ForgeError> {
 //         let mut route = Route::new();
 //         for p in &self.paths {
 //             if !p.is_dinamic && !p.is_wildcard {
@@ -173,7 +173,7 @@
 //                         None => {
 //                             let msg = format!("dynamic route [{}] node is None", p.path.clone());
 //                             log::critical(&msg, None);
-//                             return Err(HttpError::internal_server_error(msg));
+//                             return Err(ForgeError::internal_server_error(msg));
 //                         }
 //                     };
 //                 } else {
@@ -185,7 +185,7 @@
 //                         None => {
 //                             let msg = format!("static route [{}] node is None", p.path.clone());
 //                             log::critical(&msg, None);
-//                             return Err(HttpError::internal_server_error(msg));
+//                             return Err(ForgeError::internal_server_error(msg));
 //                         }
 //                     };
 //                 }
@@ -202,14 +202,14 @@
 //         return Ok(route);
 //     }
 
-//     fn make_map(&self) -> Result<Arc<AHashMap<String, RouteMap>>, HttpError> {
+//     fn make_map(&self) -> Result<Arc<AHashMap<String, RouteMap>>, ForgeError> {
 //         let mut map = AHashMap::new();
 
 //         for path in &self.paths {
 //             if map.contains_key(&path.name) {
 //                 let msg = format!("duplicate route name '{}'", path.name); // TODO: msg
 //                 log::warning(&msg, None);
-//                 return Err(HttpError::conflict(msg));
+//                 return Err(ForgeError::conflict(msg));
 //             }
 
 //             map.insert(
@@ -225,7 +225,7 @@
 //         return Ok(Arc::new(map));
 //     }
 
-//     pub fn build(&self) -> Result<Router, HttpError> {
+//     pub fn build(&self) -> Result<Router, ForgeError> {
 //         return self.make_router();
 //     }
 // }

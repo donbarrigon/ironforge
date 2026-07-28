@@ -4,9 +4,9 @@ use hyper::body::{Body, Frame};
 use std::pin::Pin;
 use std::task::{Context as TaskContext, Poll};
 
-use crate::error::HttpError;
+use crate::error::ForgeError;
 
-pub type BoxStream = Pin<Box<dyn Stream<Item = Result<Frame<Bytes>, HttpError>> + Send>>;
+pub type BoxStream = Pin<Box<dyn Stream<Item = Result<Frame<Bytes>, ForgeError>> + Send>>;
 
 pub enum ResBody {
     Full(Option<Bytes>),
@@ -25,7 +25,7 @@ impl ResBody {
 
 impl Body for ResBody {
     type Data = Bytes;
-    type Error = HttpError;
+    type Error = ForgeError;
 
     fn poll_frame(
         self: Pin<&mut Self>,

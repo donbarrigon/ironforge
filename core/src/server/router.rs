@@ -1,4 +1,4 @@
-use crate::error::HttpError;
+use crate::error::ForgeError;
 use crate::handler::context::Context;
 use ahash::AHashMap;
 use std::future::Future;
@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 // === Types =====================================================
 
-pub type BoxFuture<'a> = Pin<Box<dyn Future<Output = Result<(), HttpError>> + Send + 'a>>;
+pub type BoxFuture<'a> = Pin<Box<dyn Future<Output = Result<(), ForgeError>> + Send + 'a>>;
 
 /// Tanto Controller como Middleware usan el mismo tipo base
 pub type Controller = Arc<dyn for<'a> Fn(&'a mut Context) -> BoxFuture<'a> + Send + Sync>;
@@ -24,17 +24,17 @@ pub struct Param {
 pub type Params = Vec<Param>;
 
 pub trait QueryParams {
-    fn require(&self, name: &str) -> Result<&str, HttpError>;
+    fn require(&self, name: &str) -> Result<&str, ForgeError>;
     fn get(&self, name: &str) -> Option<&str>;
     fn get_or<'a>(&'a self, name: &str, default: &'a str) -> &'a str;
 }
 
 impl QueryParams for Params {
-    fn require(&self, name: &str) -> Result<&str, HttpError> {
+    fn require(&self, name: &str) -> Result<&str, ForgeError> {
         self.iter()
             .find(|p| p.name == name)
             .map(|p| p.value.as_str())
-            .ok_or_else(|| HttpError::bad_request(format!("missing param `{}`", name)))
+            .ok_or_else(|| ForgeError::bad_request(format!("missing param `{}`", name)))
     }
 
     fn get(&self, name: &str) -> Option<&str> {
@@ -105,7 +105,6 @@ impl Router {
     }
 }
 
-pub async fn default_not_found(c: &mut Context) -> Result<(), HttpError> {
-    // c.reply(404, Bytes::new())
-    Ok(())
+pub async fn default_not_found(c: &mut Context) -> Result<(), ForgeError> {
+    c.response_error(ForgeError::not_found(ForgeError::NOT_FOUND_MSG))
 }

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::error::HttpError;
+use crate::error::ForgeError;
 use crate::log;
 use crate::server::router::{Controller, Middleware, Router, Segment, default_not_found};
 use ahash::AHashMap;
@@ -127,7 +127,7 @@ impl RouterBuilder {
         ));
     }
 
-    pub fn make_router(&self) -> Result<Router, HttpError> {
+    pub fn make_router(&self) -> Result<Router, ForgeError> {
         let mut router = Router::new(self.name.clone(), self.not_found.clone());
         router.map = self.make_map()?;
         router.static_routes = self.make_static_routes();
@@ -158,7 +158,7 @@ impl RouterBuilder {
         return map;
     }
 
-    fn make_dinamic_routes(&self, not_found: Controller) -> Result<Segment, HttpError> {
+    fn make_dinamic_routes(&self, not_found: Controller) -> Result<Segment, ForgeError> {
         let mut route = Segment::new(not_found.clone());
         for p in &self.paths {
             if !p.is_dinamic && !p.is_wildcard {
@@ -181,7 +181,7 @@ impl RouterBuilder {
                         None => {
                             let msg = format!("dynamic route [{}] node is None", p.path.clone());
                             log::critical(&msg, None);
-                            return Err(HttpError::internal_server_error(msg));
+                            return Err(ForgeError::internal_server_error(msg));
                         }
                     };
                 } else {
@@ -194,7 +194,7 @@ impl RouterBuilder {
                         None => {
                             let msg = format!("static route [{}] node is None", p.path.clone());
                             log::critical(&msg, None);
-                            return Err(HttpError::internal_server_error(msg));
+                            return Err(ForgeError::internal_server_error(msg));
                         }
                     };
                 }
@@ -213,14 +213,14 @@ impl RouterBuilder {
 
     /// Genera el mapa de nombres de ruta -> "METHOD:/path/con/:params"
     /// en un solo string, ej: "GET:/api/users/:id/show"
-    fn make_map(&self) -> Result<Arc<AHashMap<String, String>>, HttpError> {
+    fn make_map(&self) -> Result<Arc<AHashMap<String, String>>, ForgeError> {
         let mut map = AHashMap::new();
 
         for path in &self.paths {
             if map.contains_key(&path.name) {
                 let msg = format!("duplicate route name '{}'", path.name); // TODO: msg
                 log::warning(&msg, None);
-                return Err(HttpError::conflict(msg));
+                return Err(ForgeError::conflict(msg));
             }
 
             let normalized_path = path
@@ -246,7 +246,7 @@ impl RouterBuilder {
         return Ok(Arc::new(map));
     }
 
-    pub fn build(&self) -> Result<Router, HttpError> {
+    pub fn build(&self) -> Result<Router, ForgeError> {
         return self.make_router();
     }
 }

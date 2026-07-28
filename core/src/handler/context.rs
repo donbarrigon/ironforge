@@ -5,7 +5,7 @@ use serde::de::DeserializeOwned;
 
 use crate::{
     config::env,
-    error::HttpError,
+    error::ForgeError,
     handler::{
         BoxStream, ResBody,
         headers::{self, ContentType},
@@ -64,7 +64,7 @@ impl Context {
 
     // ─── Headers de salida ───────────────────────────────────────────────────
 
-    pub fn set_header(&mut self, name: header::HeaderName, value: &str) -> Result<(), HttpError> {
+    pub fn set_header(&mut self, name: header::HeaderName, value: &str) -> Result<(), ForgeError> {
         headers::set(&mut self.headers, name, value)
     }
 
@@ -82,32 +82,32 @@ impl Context {
     /// stream que solo se puede consumir una vez, así que si algo ya lo
     /// leyó (este mismo método, llamado antes), se devuelve la copia
     /// cacheada en vez de volver a leer del socket.
-    pub async fn raw_body(&mut self) -> Result<Bytes, HttpError> {
+    pub async fn raw_body(&mut self) -> Result<Bytes, ForgeError> {
         if let Some(cached) = &self.body_cache {
             return Ok(cached.clone()); // Bytes::clone es barato (Arc por dentro)
         }
         let collected = http_body_util::BodyExt::collect(self.r.body_mut())
             .await
-            .map_err(|e| HttpError::bad_request("failed to read request body").caused_by(e))?;
+            .map_err(|e| ForgeError::bad_request("failed to read request body").caused_by(e))?;
         let bytes = collected.to_bytes();
         self.body_cache = Some(bytes.clone());
         Ok(bytes)
     }
 
-    fn decode<T: DeserializeOwned>(&self, bytes: &[u8]) -> Result<T, HttpError> {
+    fn decode<T: DeserializeOwned>(&self, bytes: &[u8]) -> Result<T, ForgeError> {
         match self.content_type() {
             ContentType::MsgPack => {
-                rmp_serde::from_slice(bytes).map_err(|e| HttpError::bad_request("invalid msgpack body").caused_by(e))
+                rmp_serde::from_slice(bytes).map_err(|e| ForgeError::bad_request("invalid msgpack body").caused_by(e))
             }
             ContentType::Json => {
-                serde_json::from_slice(bytes).map_err(|e| HttpError::bad_request("invalid json body").caused_by(e))
+                serde_json::from_slice(bytes).map_err(|e| ForgeError::bad_request("invalid json body").caused_by(e))
             }
             ContentType::Form => serde_urlencoded::from_bytes(bytes)
-                .map_err(|e| HttpError::bad_request("invalid form body").caused_by(e)),
+                .map_err(|e| ForgeError::bad_request("invalid form body").caused_by(e)),
             ContentType::Yaml => {
-                serde_yaml::from_slice(bytes).map_err(|e| HttpError::bad_request("invalid yaml body").caused_by(e))
+                serde_yaml::from_slice(bytes).map_err(|e| ForgeError::bad_request("invalid yaml body").caused_by(e))
             }
-            other => Err(HttpError::unsupported_media_type(format!(
+            other => Err(ForgeError::unsupported_media_type(format!(
                 "cannot decode body as struct from content-type '{}'",
                 other.mime()
             ))),
@@ -118,7 +118,7 @@ impl Context {
     /// a T, y corre sus reglas de validación (T::rules(), que a su vez llama
     /// su propio prepare_for_validation()). Funciona también con
     /// `get_body::<Vec<Item>>()` gracias al impl de Validator para Vec<T>.
-    pub async fn get_body<T>(&mut self) -> Result<T, HttpError>
+    pub async fn get_body<T>(&mut self) -> Result<T, ForgeError>
     where
         T: DeserializeOwned + Validator,
     {
@@ -135,13 +135,13 @@ impl Context {
 
     // ─── Escritura de respuesta ─────────────────────────────────────────────
 
-    pub fn response_into(&mut self, status: u16, body: Bytes) -> Result<(), HttpError> {
+    pub fn response_into(&mut self, status: u16, body: Bytes) -> Result<(), ForgeError> {
         self.status = status;
         self.w = Some(ResBody::full(body));
         Ok(())
     }
 
-    pub fn response<T: Serialize>(&mut self, status: u16, data: &T) -> Result<(), HttpError> {
+    pub fn response<T: Serialize>(&mut self, status: u16, data: &T) -> Result<(), ForgeError> {
         let (mime, bytes) = match self.accept() {
             ContentType::Json => match serde_json::to_vec(data) {
                 Ok(b) => ("application/json", Bytes::from(b)),
@@ -158,7 +158,7 @@ impl Context {
         self.response_into(status, bytes)
     }
 
-    fn response_fallback(&mut self) -> Result<(), HttpError> {
+    fn response_fallback(&mut self) -> Result<(), ForgeError> {
         let (mime, bytes) = match self.accept() {
             ContentType::Json => ("application/json", headers::fallback_json_bytes().clone()),
             _ => ("application/msgpack", headers::fallback_msgpack_bytes().clone()),
@@ -168,26 +168,26 @@ impl Context {
         self.response_into(500, bytes)
     }
 
-    pub fn response_error(&mut self, e: HttpError) -> Result<(), HttpError> {
+    pub fn response_error(&mut self, e: ForgeError) -> Result<(), ForgeError> {
         let status = e.status.as_u16();
         self.response(status, &e)
     }
 
     // ─── Atajos 2xx (CRUD) ───────────────────────────────────────────────────
 
-    pub fn response_ok<T: Serialize>(&mut self, data: &T) -> Result<(), HttpError> {
+    pub fn response_ok<T: Serialize>(&mut self, data: &T) -> Result<(), ForgeError> {
         self.response(200, data)
     }
 
-    pub fn response_created<T: Serialize>(&mut self, data: &T) -> Result<(), HttpError> {
+    pub fn response_created<T: Serialize>(&mut self, data: &T) -> Result<(), ForgeError> {
         self.response(201, data)
     }
 
-    pub fn response_accepted<T: Serialize>(&mut self, data: &T) -> Result<(), HttpError> {
+    pub fn response_accepted<T: Serialize>(&mut self, data: &T) -> Result<(), ForgeError> {
         self.response(202, data)
     }
 
-    pub fn response_no_content(&mut self) -> Result<(), HttpError> {
+    pub fn response_no_content(&mut self) -> Result<(), ForgeError> {
         self.response_into(204, Bytes::new())
     }
 
@@ -196,13 +196,13 @@ impl Context {
     // ningún header automáticamente (ni Content-Type). El controlador es
     // responsable de llamar set_header() antes si lo necesita.
 
-    pub fn stream(&mut self, status: u16, stream: BoxStream) -> Result<(), HttpError> {
+    pub fn stream(&mut self, status: u16, stream: BoxStream) -> Result<(), ForgeError> {
         self.status = status;
         self.w = Some(ResBody::stream(stream));
         Ok(())
     }
 
-    pub fn done(&mut self) -> Result<(), HttpError> {
+    pub fn done(&mut self) -> Result<(), ForgeError> {
         Ok(())
     }
 

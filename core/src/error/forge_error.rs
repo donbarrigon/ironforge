@@ -1,20 +1,16 @@
-use crate::{config::env, handler::ResBody};
+use crate::config::env;
 use backtrace::Backtrace;
-use http_body_util::Full;
-use hyper::{Response, StatusCode, body::Bytes, header};
+use hyper::StatusCode;
 use serde::{Serialize, Serializer};
 use serde_json::Value;
 use std::fmt;
 
-// ─── HttpError ───────────────────────────────────────────────────────────────
+// ─── ForgeError ─────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize)]
-pub struct HttpError {
+pub struct ForgeError {
     #[serde(serialize_with = "serialize_status")]
     pub status: StatusCode,
-
-    #[serde(rename = "statusMessage", skip_serializing_if = "String::is_empty")]
-    pub status_message: String,
 
     pub message: String,
 
@@ -31,24 +27,113 @@ pub struct HttpError {
     pub data: Option<Value>,
 }
 
-impl fmt::Display for HttpError {
+impl fmt::Display for ForgeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[{}] {}: {}", self.status.as_u16(), self.name, self.message)
     }
 }
 
-impl std::error::Error for HttpError {
+impl std::error::Error for ForgeError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         None
     }
 }
 
-impl HttpError {
+impl ForgeError {
+    // ─── Status code constants ──────────────────────────────────────────────
+    // Alias directo a los StatusCode que este framework usa activamente
+    // (uno por cada método de conveniencia de más abajo). Permiten referirse
+    // al código sin importar hyper::StatusCode ni recordar el número.
+
+    pub const BAD_REQUEST: StatusCode = StatusCode::BAD_REQUEST;
+    pub const UNAUTHORIZED: StatusCode = StatusCode::UNAUTHORIZED;
+    pub const PAYMENT_REQUIRED: StatusCode = StatusCode::PAYMENT_REQUIRED;
+    pub const FORBIDDEN: StatusCode = StatusCode::FORBIDDEN;
+    pub const NOT_FOUND: StatusCode = StatusCode::NOT_FOUND;
+    pub const METHOD_NOT_ALLOWED: StatusCode = StatusCode::METHOD_NOT_ALLOWED;
+    pub const NOT_ACCEPTABLE: StatusCode = StatusCode::NOT_ACCEPTABLE;
+    pub const PROXY_AUTHENTICATION_REQUIRED: StatusCode = StatusCode::PROXY_AUTHENTICATION_REQUIRED;
+    pub const REQUEST_TIMEOUT: StatusCode = StatusCode::REQUEST_TIMEOUT;
+    pub const CONFLICT: StatusCode = StatusCode::CONFLICT;
+    pub const GONE: StatusCode = StatusCode::GONE;
+    pub const LENGTH_REQUIRED: StatusCode = StatusCode::LENGTH_REQUIRED;
+    pub const PRECONDITION_FAILED: StatusCode = StatusCode::PRECONDITION_FAILED;
+    pub const PAYLOAD_TOO_LARGE: StatusCode = StatusCode::PAYLOAD_TOO_LARGE;
+    pub const URI_TOO_LONG: StatusCode = StatusCode::URI_TOO_LONG;
+    pub const UNSUPPORTED_MEDIA_TYPE: StatusCode = StatusCode::UNSUPPORTED_MEDIA_TYPE;
+    pub const RANGE_NOT_SATISFIABLE: StatusCode = StatusCode::RANGE_NOT_SATISFIABLE;
+    pub const EXPECTATION_FAILED: StatusCode = StatusCode::EXPECTATION_FAILED;
+    pub const IM_A_TEAPOT: StatusCode = StatusCode::IM_A_TEAPOT;
+    pub const MISDIRECTED_REQUEST: StatusCode = StatusCode::MISDIRECTED_REQUEST;
+    pub const UNPROCESSABLE_ENTITY: StatusCode = StatusCode::UNPROCESSABLE_ENTITY;
+    pub const LOCKED: StatusCode = StatusCode::LOCKED;
+    pub const FAILED_DEPENDENCY: StatusCode = StatusCode::FAILED_DEPENDENCY;
+    pub const UPGRADE_REQUIRED: StatusCode = StatusCode::UPGRADE_REQUIRED;
+    pub const PRECONDITION_REQUIRED: StatusCode = StatusCode::PRECONDITION_REQUIRED;
+    pub const TOO_MANY_REQUESTS: StatusCode = StatusCode::TOO_MANY_REQUESTS;
+    pub const REQUEST_HEADER_FIELDS_TOO_LARGE: StatusCode = StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE;
+    pub const UNAVAILABLE_FOR_LEGAL_REASONS: StatusCode = StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS;
+    pub const INTERNAL_SERVER_ERROR: StatusCode = StatusCode::INTERNAL_SERVER_ERROR;
+    pub const NOT_IMPLEMENTED: StatusCode = StatusCode::NOT_IMPLEMENTED;
+    pub const BAD_GATEWAY: StatusCode = StatusCode::BAD_GATEWAY;
+    pub const SERVICE_UNAVAILABLE: StatusCode = StatusCode::SERVICE_UNAVAILABLE;
+    pub const GATEWAY_TIMEOUT: StatusCode = StatusCode::GATEWAY_TIMEOUT;
+    pub const HTTP_VERSION_NOT_SUPPORTED: StatusCode = StatusCode::HTTP_VERSION_NOT_SUPPORTED;
+    pub const VARIANT_ALSO_NEGOTIATES: StatusCode = StatusCode::VARIANT_ALSO_NEGOTIATES;
+    pub const INSUFFICIENT_STORAGE: StatusCode = StatusCode::INSUFFICIENT_STORAGE;
+    pub const LOOP_DETECTED: StatusCode = StatusCode::LOOP_DETECTED;
+    pub const NOT_EXTENDED: StatusCode = StatusCode::NOT_EXTENDED;
+    pub const NETWORK_AUTHENTICATION_REQUIRED: StatusCode = StatusCode::NETWORK_AUTHENTICATION_REQUIRED;
+
+    // ─── Status message constants ───────────────────────────────────────────
+    // Texto canónico en inglés (idéntico a StatusCode::canonical_reason(),
+    // verificado contra el crate `http`), pero como const propia: accesible
+    // en compile-time, sin necesitar una instancia de StatusCode en la mano.
+
+    pub const BAD_REQUEST_MSG: &'static str = "Bad Request";
+    pub const UNAUTHORIZED_MSG: &'static str = "Unauthorized";
+    pub const PAYMENT_REQUIRED_MSG: &'static str = "Payment Required";
+    pub const FORBIDDEN_MSG: &'static str = "Forbidden";
+    pub const NOT_FOUND_MSG: &'static str = "Not Found";
+    pub const METHOD_NOT_ALLOWED_MSG: &'static str = "Method Not Allowed";
+    pub const NOT_ACCEPTABLE_MSG: &'static str = "Not Acceptable";
+    pub const PROXY_AUTHENTICATION_REQUIRED_MSG: &'static str = "Proxy Authentication Required";
+    pub const REQUEST_TIMEOUT_MSG: &'static str = "Request Timeout";
+    pub const CONFLICT_MSG: &'static str = "Conflict";
+    pub const GONE_MSG: &'static str = "Gone";
+    pub const LENGTH_REQUIRED_MSG: &'static str = "Length Required";
+    pub const PRECONDITION_FAILED_MSG: &'static str = "Precondition Failed";
+    pub const PAYLOAD_TOO_LARGE_MSG: &'static str = "Payload Too Large";
+    pub const URI_TOO_LONG_MSG: &'static str = "URI Too Long";
+    pub const UNSUPPORTED_MEDIA_TYPE_MSG: &'static str = "Unsupported Media Type";
+    pub const RANGE_NOT_SATISFIABLE_MSG: &'static str = "Range Not Satisfiable";
+    pub const EXPECTATION_FAILED_MSG: &'static str = "Expectation Failed";
+    pub const IM_A_TEAPOT_MSG: &'static str = "I'm a teapot";
+    pub const MISDIRECTED_REQUEST_MSG: &'static str = "Misdirected Request";
+    pub const UNPROCESSABLE_ENTITY_MSG: &'static str = "Unprocessable Entity";
+    pub const LOCKED_MSG: &'static str = "Locked";
+    pub const FAILED_DEPENDENCY_MSG: &'static str = "Failed Dependency";
+    pub const UPGRADE_REQUIRED_MSG: &'static str = "Upgrade Required";
+    pub const PRECONDITION_REQUIRED_MSG: &'static str = "Precondition Required";
+    pub const TOO_MANY_REQUESTS_MSG: &'static str = "Too Many Requests";
+    pub const REQUEST_HEADER_FIELDS_TOO_LARGE_MSG: &'static str = "Request Header Fields Too Large";
+    pub const UNAVAILABLE_FOR_LEGAL_REASONS_MSG: &'static str = "Unavailable For Legal Reasons";
+    pub const INTERNAL_SERVER_ERROR_MSG: &'static str = "Internal Server Error";
+    pub const NOT_IMPLEMENTED_MSG: &'static str = "Not Implemented";
+    pub const BAD_GATEWAY_MSG: &'static str = "Bad Gateway";
+    pub const SERVICE_UNAVAILABLE_MSG: &'static str = "Service Unavailable";
+    pub const GATEWAY_TIMEOUT_MSG: &'static str = "Gateway Timeout";
+    pub const HTTP_VERSION_NOT_SUPPORTED_MSG: &'static str = "HTTP Version Not Supported";
+    pub const VARIANT_ALSO_NEGOTIATES_MSG: &'static str = "Variant Also Negotiates";
+    pub const INSUFFICIENT_STORAGE_MSG: &'static str = "Insufficient Storage";
+    pub const LOOP_DETECTED_MSG: &'static str = "Loop Detected";
+    pub const NOT_EXTENDED_MSG: &'static str = "Not Extended";
+    pub const NETWORK_AUTHENTICATION_REQUIRED_MSG: &'static str = "Network Authentication Required";
+
     pub fn new(status: StatusCode, message: impl Into<String>) -> Self {
         let debug = env().app.debug;
         Self {
             status,
-            status_message: status.canonical_reason().unwrap_or("").into(),
             message: message.into(),
             name: "ForgeError".into(),
             stack: if debug { get_stack() } else { String::new() },
@@ -71,30 +156,6 @@ impl HttpError {
     pub fn with_data(mut self, data: impl Serialize) -> Self {
         self.data = Some(serde_json::json!(data));
         self
-    }
-
-    // ─── Response ────────────────────────────────────────────────────────────
-
-    pub fn response(&self) -> Response<ResBody> {
-        let bytes = rmp_serde::to_vec_named(self)
-            .unwrap_or_else(|e| format!(r#"{{"error":"Msgpack serialization error: {}"}}"#, e).into_bytes());
-
-        Response::builder()
-            .status(self.status)
-            .header(header::CONTENT_TYPE, "application/msgpack")
-            .body(ResBody::full(Bytes::from(bytes)))
-            .unwrap_or_else(|_| Response::new(ResBody::full(Bytes::new())))
-    }
-
-    pub fn response_json(&self) -> Response<ResBody> {
-        let bytes = serde_json::to_vec(self)
-            .unwrap_or_else(|e| format!(r#"{{"error":"Json serialization error: {}"}}"#, e).into_bytes());
-
-        Response::builder()
-            .status(self.status)
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(ResBody::full(Bytes::from(bytes)))
-            .unwrap_or_else(|_| Response::new(ResBody::full(Bytes::new())))
     }
 
     // ─── 4xx Client Errors ───────────────────────────────────────────────────
