@@ -46,7 +46,7 @@ pub fn load_translations() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Traduccion sin parametros
 /// Si no encuentra la traduccion retorna el mismo string que entro
-pub fn t(locale: impl Into<String>, key: impl Into<String>) -> String {
+pub fn translate(locale: impl Into<String>, key: impl Into<String>) -> String {
     let key = key.into();
 
     let Some(all) = TRANSLATIONS.get() else {
