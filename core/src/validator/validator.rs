@@ -1,4 +1,4 @@
-use crate::error::ForgeError;
+use crate::{error::validation_error::ValidationError, handler::context::Context};
 
 /// Cualquier struct que `get_body`/`get_body::<Vec<T>>` pueda recibir como
 /// destino de deserialización, con validación propia.
@@ -12,21 +12,25 @@ use crate::error::ForgeError;
 ///   como primer paso. `get_body` solo llama `rules()`, nunca
 ///   `prepare_for_validation()` directamente.
 pub trait Validator {
-    fn prepare_for_validation(&mut self) -> Result<(), ForgeError> {
-        Ok(())
+    fn prepare_for_validation(&mut self, c: &mut Context) -> ValidationError {
+        ValidationError::new()
     }
 
-    fn rules(&mut self) -> Result<(), ForgeError>;
+    fn validate(&mut self, c: &mut Context) -> ValidationError;
 }
 
 /// Permite `get_body::<Vec<Item>>()` sin necesitar una función aparte para
 /// colecciones: cada elemento corre sus propias reglas (que a su vez llaman
-/// su propio `prepare_for_validation`), y el primer error corta el resto.
+/// su propio `prepare_for_validation`), y acumula los errores en un vector.
 impl<T: Validator> Validator for Vec<T> {
-    fn rules(&mut self) -> Result<(), ForgeError> {
-        for item in self.iter_mut() {
-            item.rules()?;
+    fn validate(&mut self, c: &mut Context) -> ValidationError {
+        let mut errors: ValidationError = ValidationError::new();
+        for (i, item) in self.iter_mut().enumerate() {
+            let ve = item.validate(c);
+            if ve.has_errors() {
+                errors.push_error(i, ve);
+            }
         }
-        Ok(())
+        return errors;
     }
 }
