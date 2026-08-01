@@ -29,8 +29,9 @@ rustls = { version = "0.23", features = ["ring"] }
 tokio-rustls = "0.26"
 rustls-pemfile = "2"
 
-# ================ log ================
+# ================ fechas ================
 chrono = { version = "0.4", features = ["serde"] }
+time = "0.3.55"
 
 # ================ error ================
 backtrace = "0.3"
@@ -43,7 +44,10 @@ serde_yaml = "0.9.34"
 
 # ================ mongodb ================
 futures = "0.3.28"
-
 # ##tokio = {version = "1.32.0", features = ["full"]}
+
+# ================ otras ================
+
+
 [dependencies.mongodb]
 version = "3.6.0"

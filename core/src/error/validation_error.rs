@@ -17,8 +17,12 @@ impl FieldError {
         }
     }
 
-    pub fn push(&mut self, message: String, placeholders: Placeholders) {
+    pub fn push_message(&mut self, message: String, placeholders: Placeholders) {
         self.messages.push((message, placeholders));
+    }
+
+    pub fn push(&mut self, e: (String, Placeholders)) {
+        self.messages.push(e);
     }
 }
 
@@ -35,7 +39,7 @@ impl ValidationError {
         }
     }
 
-    /// Agrega un nuevo campo a la validación
+    /// Agrega un nuevo campo a la validación retorna la referencia mutable al FieldError creado o existente
     pub fn push_field(&mut self, field: String) -> &mut FieldError {
         if let Some(idx) = self.errors.iter().position(|e| e.field == field) {
             return &mut self.errors[idx];
@@ -46,7 +50,7 @@ impl ValidationError {
 
     /// Agrega un nuevo error a un campo
     pub fn push(&mut self, field: String, message: String, placeholders: Placeholders) {
-        self.push_field(field).push(message, placeholders);
+        self.push_field(field).push((message, placeholders));
     }
 
     /// Agrega un nuevo error a la colección de errores
