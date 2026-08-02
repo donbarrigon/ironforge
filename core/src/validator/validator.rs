@@ -12,7 +12,7 @@ use crate::{error::validation_error::ValidationError, handler::context::Context}
 ///   como primer paso. `get_body` solo llama `rules()`, nunca
 ///   `prepare_for_validation()` directamente.
 pub trait Validator {
-    fn prepare_for_validation(&mut self, c: &mut Context) -> ValidationError {
+    fn prepare_for_validation(&mut self, _: &mut Context) -> ValidationError {
         ValidationError::new()
     }
 

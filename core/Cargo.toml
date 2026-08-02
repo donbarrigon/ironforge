@@ -44,10 +44,11 @@ serde_yaml = "0.9.34"
 
 # ================ mongodb ================
 futures = "0.3.28"
+
 # ##tokio = {version = "1.32.0", features = ["full"]}
 
 # ================ otras ================
-
+regex = "1.13.1"
 
 [dependencies.mongodb]
 version = "3.6.0"
