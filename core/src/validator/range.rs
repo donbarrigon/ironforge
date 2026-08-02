@@ -4,6 +4,21 @@ use std::collections::{BTreeMap, HashMap};
 use ahash::AHashMap;
 use bytes::Bytes;
 
+pub const MSG_MIN: &str = "the :field field must be at least :min";
+pub const MSG_NOT_MIN: &str = "the :field field must not be at least :min";
+pub const MSG_MAX: &str = "the :field field must be at most :max";
+pub const MSG_NOT_MAX: &str = "the :field field must not be at most :max";
+pub const MSG_GT: &str = "the :field field must be greater than :gt";
+pub const MSG_NOT_GT: &str = "the :field field must not be greater than :gt";
+pub const MSG_LT: &str = "the :field field must be less than :lt";
+pub const MSG_NOT_LT: &str = "the :field field must not be less than :lt";
+pub const MSG_BETWEEN: &str = "the :field field must be between :min and :max";
+pub const MSG_NOT_BETWEEN: &str = "the :field field must not be between :min and :max";
+pub const MSG_BETWEEN_EXCLUSIVE: &str = "the :field field must be strictly between :min and :max";
+pub const MSG_NOT_BETWEEN_EXCLUSIVE: &str = "the :field field must not be strictly between :min and :max";
+pub const MSG_OUTSIDE: &str = "the :field field must be outside the range :min - :max";
+pub const MSG_NOT_OUTSIDE: &str = "the :field field must not be outside the range :min - :max";
+
 /// Valida que un valor se encuentre dentro o fuera de un rango.
 ///
 /// - **Números:** comparación directa del valor.

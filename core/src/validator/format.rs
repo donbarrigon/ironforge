@@ -26,36 +26,65 @@ fn password_category_count(value: &str) -> u8 {
 // ===============================================================================
 // Mensajes por defecto (para la macro `rules!`; :field se inyecta después)
 // ===============================================================================
-pub const MSG_EMAIL: &str = "el campo :field debe ser un correo electrónico válido";
-pub const MSG_PHONE: &str = "el campo :field debe ser un número de teléfono válido";
-pub const MSG_PHONE_CODE: &str = "el campo :field debe incluir el código de país (ej: +57...)";
-pub const MSG_ALPHA: &str = "el campo :field solo debe contener letras";
-pub const MSG_ALPHA_DASH: &str = "el campo :field solo debe contener letras, guiones y guiones bajos";
-pub const MSG_ALPHA_SPACES: &str = "el campo :field solo debe contener letras y espacios";
-pub const MSG_ALPHA_NUM: &str = "el campo :field solo debe contener letras y números";
-pub const MSG_ALPHA_NUM_DASH: &str = "el campo :field solo debe contener letras, números, guiones y guiones bajos";
-pub const MSG_ALPHA_NUM_SPACES: &str = "el campo :field solo debe contener letras, números y espacios";
+pub const MSG_EMAIL: &str = "the :field field must be a valid email address";
+pub const MSG_NOT_EMAIL: &str = "the :field field must not be a valid email address";
+pub const MSG_PHONE: &str = "the :field field must be a valid phone number";
+pub const MSG_NOT_PHONE: &str = "the :field field must not be a valid phone number";
+pub const MSG_PHONE_CODE: &str = "the :field field must include the country code (e.g. +57...)";
+pub const MSG_NOT_PHONE_CODE: &str = "the :field field must not include a country code";
+pub const MSG_ALPHA: &str = "the :field field must only contain letters";
+pub const MSG_NOT_ALPHA: &str = "the :field field must not only contain letters";
+pub const MSG_ALPHA_DASH: &str = "the :field field must only contain letters, dashes and underscores";
+pub const MSG_NOT_ALPHA_DASH: &str = "the :field field must not only contain letters, dashes and underscores";
+pub const MSG_ALPHA_SPACES: &str = "the :field field must only contain letters and spaces";
+pub const MSG_NOT_ALPHA_SPACES: &str = "the :field field must not only contain letters and spaces";
+pub const MSG_ALPHA_NUM: &str = "the :field field must only contain letters and numbers";
+pub const MSG_NOT_ALPHA_NUM: &str = "the :field field must not only contain letters and numbers";
+pub const MSG_ALPHA_NUM_DASH: &str = "the :field field must only contain letters, numbers, dashes and underscores";
+pub const MSG_NOT_ALPHA_NUM_DASH: &str =
+    "the :field field must not only contain letters, numbers, dashes and underscores";
+pub const MSG_ALPHA_NUM_SPACES: &str = "the :field field must only contain letters, numbers and spaces";
+pub const MSG_NOT_ALPHA_NUM_SPACES: &str = "the :field field must not only contain letters, numbers and spaces";
 pub const MSG_ALPHA_NUM_DS: &str =
-    "el campo :field solo debe contener letras, números, espacios, guiones y guiones bajos";
-pub const MSG_SLUG: &str = "el campo :field debe ser un slug válido (minúsculas, números y guiones)";
-pub const MSG_HEX_COLOR: &str = "el campo :field debe ser un color hexadecimal válido";
-pub const MSG_UUID: &str = "el campo :field debe ser un UUID válido";
-pub const MSG_URL: &str = "el campo :field debe ser una URL válida";
-pub const MSG_IPV4: &str = "el campo :field debe ser una dirección IPv4 válida";
-pub const MSG_IPV6: &str = "el campo :field debe ser una dirección IPv6 válida";
-pub const MSG_POSTAL_CODE_CO: &str = "el campo :field debe ser un código postal colombiano válido";
-pub const MSG_HASHTAG: &str = "el campo :field debe ser un hashtag válido";
-pub const MSG_MENTION: &str = "el campo :field debe ser una mención válida";
-pub const MSG_TIME_24H: &str = "el campo :field debe ser una hora válida (HH:MM, 24h)";
-pub const MSG_ISO_DATE: &str = "el campo :field debe ser una fecha válida (YYYY-MM-DD)";
-pub const MSG_REGEX: &str = "el campo :field tiene un formato inválido";
-pub const MSG_JSON: &str = "el campo :field debe ser un JSON válido";
-pub const MSG_USERNAME: &str = "el campo :field debe ser un nombre de usuario válido";
-pub const MSG_PASSWORD: &str = "el campo :field debe tener al menos 8 caracteres, con letras y números";
+    "the :field field must only contain letters, numbers, spaces, dashes and underscores";
+pub const MSG_NOT_ALPHA_NUM_DS: &str =
+    "the :field field must not only contain letters, numbers, spaces, dashes and underscores";
+pub const MSG_SLUG: &str = "the :field field must be a valid slug (lowercase, numbers and dashes)";
+pub const MSG_NOT_SLUG: &str = "the :field field must not be a valid slug";
+pub const MSG_HEX_COLOR: &str = "the :field field must be a valid hex color";
+pub const MSG_NOT_HEX_COLOR: &str = "the :field field must not be a valid hex color";
+pub const MSG_UUID: &str = "the :field field must be a valid UUID";
+pub const MSG_NOT_UUID: &str = "the :field field must not be a valid UUID";
+pub const MSG_URL: &str = "the :field field must be a valid URL";
+pub const MSG_NOT_URL: &str = "the :field field must not be a valid URL";
+pub const MSG_IPV4: &str = "the :field field must be a valid IPv4 address";
+pub const MSG_NOT_IPV4: &str = "the :field field must not be a valid IPv4 address";
+pub const MSG_IPV6: &str = "the :field field must be a valid IPv6 address";
+pub const MSG_NOT_IPV6: &str = "the :field field must not be a valid IPv6 address";
+pub const MSG_POSTAL_CODE_CO: &str = "the :field field must be a valid Colombian postal code";
+pub const MSG_NOT_POSTAL_CODE_CO: &str = "the :field field must not be a valid Colombian postal code";
+pub const MSG_HASHTAG: &str = "the :field field must be a valid hashtag";
+pub const MSG_NOT_HASHTAG: &str = "the :field field must not be a valid hashtag";
+pub const MSG_MENTION: &str = "the :field field must be a valid mention";
+pub const MSG_NOT_MENTION: &str = "the :field field must not be a valid mention";
+pub const MSG_TIME_24H: &str = "the :field field must be a valid time (HH:MM, 24h)";
+pub const MSG_NOT_TIME_24H: &str = "the :field field must not be a valid time";
+pub const MSG_ISO_DATE: &str = "the :field field must be a valid date (YYYY-MM-DD)";
+pub const MSG_NOT_ISO_DATE: &str = "the :field field must not be a valid date";
+pub const MSG_RE_EX: &str = "the :field field has an invalid format";
+pub const MSG_NOT_RE_EX: &str = "the :field field must not match the given format";
+pub const MSG_JSON: &str = "the :field field must be valid JSON";
+pub const MSG_NOT_JSON: &str = "the :field field must not be valid JSON";
+pub const MSG_USERNAME: &str = "the :field field must be a valid username";
+pub const MSG_NOT_USERNAME: &str = "the :field field must not be a valid username";
+pub const MSG_PASSWORD: &str = "the :field field must be between 8 and 64 characters, with letters and numbers";
+pub const MSG_NOT_PASSWORD: &str = "the :field field must not meet the basic password requirements";
 pub const MSG_PASSWORD_MID: &str =
-    "el campo :field debe tener al menos 8 caracteres y combinar mayúsculas, minúsculas, números o símbolos";
+    "the :field field must be between 8 and 64 characters and combine uppercase, lowercase, numbers or symbols";
+pub const MSG_NOT_PASSWORD_MID: &str = "the :field field must not meet the medium password requirements";
 pub const MSG_PASSWORD_STRONG: &str =
-    "el campo :field debe tener al menos 12 caracteres, con mayúsculas, minúsculas, números y símbolos";
+    "the :field field must be between 12 and 64 characters, with uppercase, lowercase, numbers and symbols";
+pub const MSG_NOT_PASSWORD_STRONG: &str = "the :field field must not meet the strong password requirements";
 
 /// Genera una función privada `$name() -> &'static Regex` que compila el
 /// patrón la primera vez que se llama (`OnceLock`, lazy) y reusa la
@@ -104,7 +133,7 @@ static_regex!(re_iso_date_pat, r"^\d{4}-\d{2}-\d{2}$");
 /// Reglas de formato basadas en regex, precompiladas. Implementado solo
 /// para `str` -- `String` y `Cow<'_, str>` lo heredan gratis vía deref
 /// coercion (`Deref<Target = str>`), no hace falta repetir el impl.
-pub trait ValidatorRegex {
+pub trait Format {
     fn re_email(&self) -> bool;
     fn re_phone(&self) -> bool;
     fn re_phone_code(&self) -> bool;
@@ -132,12 +161,13 @@ pub trait ValidatorRegex {
     /// solo trait, sin importar el mecanismo interno de cada una.
     fn re_json(&self) -> bool;
 
-    /// Empieza con letra, solo permite [letra/dígito/`.`/`_`/`-`], y no
+    /// Empieza con letra, solo permite [letra/dígito/`.`/`_`/`-`], no
     /// permite puntuación repetida ni al borde (ej: `__`, `..`, `--`,
-    /// `_juan`, `juan_`). Un regex podría cubrir el charset, pero las
-    /// reglas anti-spam de repetición/bordes quedan ilegibles en regex
-    /// -- por eso es imperativa.
-    fn re_username(&self) -> bool;
+    /// `_juan`, `juan_`), y su longitud debe caer entre `min` y `max`
+    /// caracteres. Un regex podría cubrir el charset, pero las reglas
+    /// anti-spam de repetición/bordes quedan ilegibles en regex -- por
+    /// eso es imperativa.
+    fn re_username(&self, min: usize, max: usize) -> bool;
 
     /// Mínimo 8 caracteres, con al menos una letra y un número.
     fn re_password(&self) -> bool;
@@ -162,7 +192,7 @@ pub trait ValidatorRegex {
     fn re_ex(&self, name: &str, pattern: &str) -> Result<bool, ForgeError>;
 }
 
-impl ValidatorRegex for str {
+impl Format for str {
     fn re_email(&self) -> bool {
         re_email_pat().is_match(self)
     }
@@ -231,7 +261,12 @@ impl ValidatorRegex for str {
         serde_json::from_str::<serde_json::Value>(self).is_ok()
     }
 
-    fn re_username(&self) -> bool {
+    fn re_username(&self, min: usize, max: usize) -> bool {
+        let len = self.chars().count();
+        if len < min || len > max {
+            return false;
+        }
+
         let mut chars = self.chars().peekable();
 
         // Debe empezar con una letra Unicode.
@@ -262,7 +297,8 @@ impl ValidatorRegex for str {
     }
 
     fn re_password(&self) -> bool {
-        if self.chars().count() < 8 {
+        let len = self.chars().count();
+        if len < 8 || len > 64 {
             return false;
         }
         let has_letter = self.chars().any(|c| c.is_alphabetic());
@@ -271,14 +307,16 @@ impl ValidatorRegex for str {
     }
 
     fn re_password_mid(&self) -> bool {
-        if self.chars().count() < 8 {
+        let len = self.chars().count();
+        if len < 8 || len > 64 {
             return false;
         }
         password_category_count(self) >= 3
     }
 
     fn re_password_strong(&self) -> bool {
-        if self.chars().count() < 12 {
+        let len = self.chars().count();
+        if len < 12 || len > 64 {
             return false;
         }
         password_category_count(self) == 4

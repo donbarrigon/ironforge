@@ -13,10 +13,12 @@ use crate::{error::validation_error::ValidationError, handler::context::Context}
 ///   `prepare_for_validation()` directamente.
 pub trait Validator {
     fn prepare_for_validation(&mut self, _: &mut Context) -> ValidationError {
-        ValidationError::new()
+        return ValidationError::new();
     }
 
-    fn validate(&mut self, c: &mut Context) -> ValidationError;
+    fn validate(&mut self, c: &mut Context) -> ValidationError {
+        return self.prepare_for_validation(c);
+    }
 }
 
 /// Permite `get_body::<Vec<Item>>()` sin necesitar una función aparte para

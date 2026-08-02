@@ -1,5 +1,6 @@
 mod controller;
 mod router_builder;
+mod rules;
 
 use proc_macro::TokenStream;
 
@@ -16,4 +17,9 @@ pub fn middleware(attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn router_build(input: TokenStream) -> TokenStream {
     return router_builder::router_builder_macro(input);
+}
+
+#[proc_macro]
+pub fn rules(input: TokenStream) -> TokenStream {
+    return rules::rules_impl(input);
 }

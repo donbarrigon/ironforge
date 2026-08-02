@@ -1,7 +1,11 @@
 // core/src/validator/required.rs
 
-use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
+
+pub const MSG_REQUIRED: &str = "the :field field is required";
+pub const MSG_NOT_REQUIRED: &str = "the :field field must not be required";
+pub const MSG_EMPTY: &str = "the :field field must be empty";
+pub const MSG_NOT_EMPTY: &str = "the :field field must not be empty";
 
 /// Verifica que un valor no sea considerado "vacío" o en su "zero value" según su tipo.
 ///
@@ -15,100 +19,30 @@ use std::collections::{BTreeMap, HashMap};
 /// - **Box:** delega la validación al valor interno.
 pub trait Required {
     fn required(&self) -> bool;
-}
 
-// =======================================
-// Enteros con signo
-// =======================================
-impl Required for i8 {
-    fn required(&self) -> bool {
-        *self != 0
+    /// Inverso de `required()` -- `true` si el valor está vacío/en su
+    /// zero value. Default derivado, ningún impl necesita definirlo.
+    fn empty(&self) -> bool {
+        !self.required()
     }
 }
 
-impl Required for i16 {
-    fn required(&self) -> bool {
-        *self != 0
-    }
+/// Genera el impl de `Required` para tipos numéricos comparando contra
+/// `Default::default()` -- cubre enteros (`0`) y flotantes (`0.0`) con
+/// una sola rama, sin repetir la lógica por tipo.
+macro_rules! impl_required_numeric {
+    ($($t:ty),* $(,)?) => {
+        $(
+            impl Required for $t {
+                fn required(&self) -> bool {
+                    *self != <$t>::default()
+                }
+            }
+        )*
+    };
 }
 
-impl Required for i32 {
-    fn required(&self) -> bool {
-        *self != 0
-    }
-}
-
-impl Required for i64 {
-    fn required(&self) -> bool {
-        *self != 0
-    }
-}
-
-impl Required for i128 {
-    fn required(&self) -> bool {
-        *self != 0
-    }
-}
-
-impl Required for isize {
-    fn required(&self) -> bool {
-        *self != 0
-    }
-}
-
-// =======================================
-// Enteros sin signo
-// =======================================
-impl Required for u8 {
-    fn required(&self) -> bool {
-        *self != 0
-    }
-}
-
-impl Required for u16 {
-    fn required(&self) -> bool {
-        *self != 0
-    }
-}
-
-impl Required for u32 {
-    fn required(&self) -> bool {
-        *self != 0
-    }
-}
-
-impl Required for u64 {
-    fn required(&self) -> bool {
-        *self != 0
-    }
-}
-
-impl Required for u128 {
-    fn required(&self) -> bool {
-        *self != 0
-    }
-}
-
-impl Required for usize {
-    fn required(&self) -> bool {
-        *self != 0
-    }
-}
-
-// =======================================
-// Flotantes
-// =======================================
-impl Required for f32 {
-    fn required(&self) -> bool {
-        *self != 0.0
-    }
-}
-
-impl Required for f64 {
-    fn required(&self) -> bool {
-        *self != 0.0
-    }
-}
+impl_required_numeric!(i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, f32, f64,);
 
 // =======================================
 // Booleano
@@ -120,15 +54,10 @@ impl Required for bool {
 }
 
 // =======================================
-// Strings
+// Strings -- solo `str`. `String` y `Cow<'_, str>` lo heredan gratis vía
+// deref coercion (`Deref<Target = str>`), no hace falta repetir el impl.
 // =======================================
-impl Required for &str {
-    fn required(&self) -> bool {
-        !self.is_empty()
-    }
-}
-
-impl Required for String {
+impl Required for str {
     fn required(&self) -> bool {
         !self.is_empty()
     }
@@ -143,27 +72,30 @@ impl<T> Required for Option<T> {
     }
 }
 
+/// Cuerpo compartido para colecciones donde "requerido" es simplemente
+/// "no vacío" (`!self.is_empty()`). Se invoca dentro de cada `impl` con
+/// el header de genéricos que corresponda -- misma técnica que
+/// `range_len_methods!` en `range.rs`, para evitar la ambigüedad de
+/// parsing de unificar distintas aridades de genéricos en una macro.
+macro_rules! required_is_empty {
+    () => {
+        fn required(&self) -> bool {
+            !self.is_empty()
+        }
+    };
+}
+
 // =======================================
-// Vec
+// Vec / Slice / Array
 // =======================================
 impl<T> Required for Vec<T> {
-    fn required(&self) -> bool {
-        !self.is_empty()
-    }
+    required_is_empty!();
 }
 
-// =======================================
-// Slice
-// =======================================
 impl<T> Required for &[T] {
-    fn required(&self) -> bool {
-        !self.is_empty()
-    }
+    required_is_empty!();
 }
 
-// =======================================
-// Array (const genérico)
-// =======================================
 impl<T, const N: usize> Required for [T; N] {
     fn required(&self) -> bool {
         N != 0
@@ -174,30 +106,15 @@ impl<T, const N: usize> Required for [T; N] {
 // Maps
 // =======================================
 impl<K, V> Required for HashMap<K, V> {
-    fn required(&self) -> bool {
-        !self.is_empty()
-    }
+    required_is_empty!();
 }
 
 impl<K, V> Required for BTreeMap<K, V> {
-    fn required(&self) -> bool {
-        !self.is_empty()
-    }
+    required_is_empty!();
 }
 
 impl<K, V> Required for ahash::AHashMap<K, V> {
-    fn required(&self) -> bool {
-        !self.is_empty()
-    }
-}
-
-// =======================================
-// Cow
-// =======================================
-impl Required for Cow<'_, str> {
-    fn required(&self) -> bool {
-        !self.is_empty()
-    }
+    required_is_empty!();
 }
 
 // =======================================
@@ -210,7 +127,8 @@ impl<T: Required> Required for Box<T> {
 }
 
 // =======================================
-// serde_json::Value
+// serde_json::Value -- cada variante tiene su propia noción de "vacío",
+// no encaja en ningún patrón compartido con los demás tipos.
 // =======================================
 impl Required for serde_json::Value {
     fn required(&self) -> bool {
@@ -226,7 +144,10 @@ impl Required for serde_json::Value {
 }
 
 // =======================================
-// chrono
+// chrono / time -- cada tipo construye su propio "epoch" de forma
+// distinta (algunos tienen una constante `UNIX_EPOCH`, otros necesitan
+// `from_ymd_opt(...).unwrap()`), así que no comparten un cuerpo de
+// macro; quedan explícitos.
 // =======================================
 impl Required for chrono::NaiveDate {
     fn required(&self) -> bool {
@@ -250,9 +171,6 @@ impl<Tz: chrono::TimeZone> Required for chrono::DateTime<Tz> {
     }
 }
 
-// =======================================
-// time
-// =======================================
 impl Required for time::Date {
     fn required(&self) -> bool {
         *self != time::Date::from_calendar_date(1970, time::Month::January, 1).unwrap()
