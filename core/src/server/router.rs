@@ -23,28 +23,28 @@ pub struct Param {
 
 pub type Params = Vec<Param>;
 
-pub trait QueryParams {
-    fn require(&self, name: &str) -> Result<&str, ForgeError>;
-    fn get(&self, name: &str) -> Option<&str>;
-    fn get_or<'a>(&'a self, name: &str, default: &'a str) -> &'a str;
-}
+// pub trait QueryParams {
+//     fn require(&self, name: &str) -> Result<&str, ForgeError>;
+//     fn get(&self, name: &str) -> Option<&str>;
+//     fn get_or<'a>(&'a self, name: &str, default: &'a str) -> &'a str;
+// }
 
-impl QueryParams for Params {
-    fn require(&self, name: &str) -> Result<&str, ForgeError> {
-        self.iter()
-            .find(|p| p.name == name)
-            .map(|p| p.value.as_str())
-            .ok_or_else(|| ForgeError::bad_request(format!("missing param `{}`", name)))
-    }
+// impl QueryParams for Params {
+//     fn require(&self, name: &str) -> Result<&str, ForgeError> {
+//         self.iter()
+//             .find(|p| p.name == name)
+//             .map(|p| p.value.as_str())
+//             .ok_or_else(|| ForgeError::bad_request(format!("missing param `{}`", name)))
+//     }
 
-    fn get(&self, name: &str) -> Option<&str> {
-        self.iter().find(|p| p.name == name).map(|p| p.value.as_str())
-    }
+//     fn get(&self, name: &str) -> Option<&str> {
+//         self.iter().find(|p| p.name == name).map(|p| p.value.as_str())
+//     }
 
-    fn get_or<'a>(&'a self, name: &str, default: &'a str) -> &'a str {
-        self.get(name).unwrap_or(default)
-    }
-}
+//     fn get_or<'a>(&'a self, name: &str, default: &'a str) -> &'a str {
+//         self.get(name).unwrap_or(default)
+//     }
+// }
 
 // === Segment ====================================================
 // Antes se llamaba Route. Cada nodo del árbol representa un
@@ -55,6 +55,7 @@ impl QueryParams for Params {
 pub struct Segment {
     pub controller: Controller,
     pub middlewares: Vec<Middleware>,
+    pub handlers: Vec<Controller>,
     pub params: Vec<String>,
     pub static_routes: AHashMap<String, Segment>,
     pub dinamic_routes: Option<Box<Segment>>,
@@ -70,6 +71,7 @@ impl Segment {
         Self {
             controller: not_found,
             middlewares: Vec::new(),
+            handlers: Vec::new(),
             params: Vec::new(),
             static_routes: AHashMap::new(),
             dinamic_routes: None,

@@ -3,6 +3,7 @@ use hyper::{Request, Response, body::Incoming, header};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
+use crate::server::router::Params;
 use crate::{
     config::env,
     error::ForgeError,
@@ -19,6 +20,7 @@ pub struct Context {
     pub status: u16,
     pub locale: String,
     pub headers: header::HeaderMap,
+    pub params: Params,
     body_cache: Option<Bytes>,
 }
 
@@ -38,6 +40,7 @@ impl Context {
             status: 200,
             locale,
             headers: header::HeaderMap::new(),
+            params: Vec::new(),
             body_cache: None,
         }
     }
@@ -220,5 +223,21 @@ impl Context {
         builder
             .body(body)
             .unwrap_or_else(|_| Response::new(ResBody::full(headers::fallback_json_bytes().clone())))
+    }
+
+    fn require_param(&self, name: &str) -> Result<&str, ForgeError> {
+        self.params
+            .iter()
+            .find(|p| p.name == name)
+            .map(|p| p.value.as_str())
+            .ok_or_else(|| ForgeError::bad_request(format!("missing param `{}`", name)))
+    }
+
+    fn get_param(&self, name: &str) -> Option<&str> {
+        self.params.iter().find(|p| p.name == name).map(|p| p.value.as_str())
+    }
+
+    fn get_param_or<'a>(&'a self, name: &str, default: &'a str) -> &'a str {
+        self.get_param(name).unwrap_or(default)
     }
 }

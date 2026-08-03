@@ -147,6 +147,7 @@ impl RouterBuilder {
                 Segment {
                     controller: p.controller.clone(),
                     middlewares: p.middlewares.clone(),
+                    handlers: Vec::new(), // TODO hay que implementarlo
                     params: Vec::new(),
                     static_routes: AHashMap::new(),
                     dinamic_routes: None,

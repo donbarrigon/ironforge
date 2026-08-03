@@ -1,5 +1,4 @@
 use std::net::SocketAddr;
-use std::sync::OnceLock;
 
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
@@ -13,20 +12,6 @@ use tokio_rustls::TlsAcceptor;
 use crate::server::dispatch::dispatch;
 use crate::server::router::Router;
 
-// ─── Router singleton ──────────────────────────────────────────
-
-static ROUTER: OnceLock<Router> = OnceLock::new();
-
-pub fn set_router(router: Router) {
-    let _ = ROUTER.set(router);
-}
-
-pub fn get_router() -> &'static Router {
-    ROUTER
-        .get()
-        .expect("router no inicializado — llama set_router() antes de listen()")
-}
-
 // ─── Server ────────────────────────────────────────────────────
 
 pub struct Server {
@@ -34,10 +19,13 @@ pub struct Server {
     shutdown_sender: Option<oneshot::Sender<()>>,
     https: bool,
     auto_cert: bool,
+    router: &'static Router,
 }
 
 impl Server {
-    pub fn new(host: &str, port: u16) -> Self {
+    /// Crea un nuevo server. El router se filtra a 'static una única vez aquí
+    /// (Box::leak no es un leak real: el Router vive todo el programa de todas formas).
+    pub fn new(host: &str, port: u16, router: Router) -> Self {
         let addr = format!("{}:{}", host, port).parse().expect("dirección inválida");
 
         Self {
@@ -45,12 +33,8 @@ impl Server {
             shutdown_sender: None,
             https: false,
             auto_cert: false,
+            router: Box::leak(Box::new(router)),
         }
-    }
-
-    pub fn router(router: Router) -> &'static Router {
-        set_router(router);
-        get_router()
     }
 
     pub fn enable_https(&mut self) -> &mut Self {
@@ -74,6 +58,8 @@ impl Server {
     }
 
     pub async fn listen(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let router = self.router;
+
         let listener = TcpListener::bind(self.addr).await?;
         let (tx, mut rx) = oneshot::channel::<()>();
         self.shutdown_sender = Some(tx);
@@ -106,7 +92,10 @@ impl Server {
                             let io = TokioIo::new(tls_stream);
 
                             if let Err(e) = auto::Builder::new(TokioExecutor::new())
-                                .serve_connection_with_upgrades(io, service_fn(dispatch))
+                                .serve_connection_with_upgrades(
+                                    io,
+                                    service_fn(move |req| dispatch(req, router)),
+                                )
                                 .await
                             {
                                 eprintln!("error en conexión HTTPS: {:?}", e);
@@ -137,7 +126,7 @@ impl Server {
                         tokio::spawn(async move {
                             if let Err(e) = http1::Builder::new()
                                 .keep_alive(true)
-                                .serve_connection(io, service_fn(dispatch))
+                                .serve_connection(io, service_fn(move |req| dispatch(req, router)))
                                 .await
                             {
                                 eprintln!("error en conexión HTTP: {:?}", e);
