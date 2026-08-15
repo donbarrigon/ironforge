@@ -53,8 +53,8 @@ pub type Params = Vec<Param>;
 
 #[derive(Clone)]
 pub struct Segment {
-    pub controller: Controller,
-    pub middlewares: Vec<Middleware>,
+    // pub controller: Controller,
+    // pub middlewares: Vec<Middleware>,
     pub handlers: Vec<Controller>,
     pub params: Vec<String>,
     pub static_routes: AHashMap<String, Segment>,
@@ -69,9 +69,9 @@ impl Segment {
     /// siempre apuntaba a un default_not_found fijo.
     pub fn new(not_found: Controller) -> Self {
         Self {
-            controller: not_found,
-            middlewares: Vec::new(),
-            handlers: Vec::new(),
+            // controller: not_found,
+            // middlewares: Vec::new(),
+            handlers: vec![not_found],
             params: Vec::new(),
             static_routes: AHashMap::new(),
             dinamic_routes: None,

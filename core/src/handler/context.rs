@@ -225,7 +225,7 @@ impl Context {
             .unwrap_or_else(|_| Response::new(ResBody::full(headers::fallback_json_bytes().clone())))
     }
 
-    fn require_param(&self, name: &str) -> Result<&str, ForgeError> {
+    pub fn require_param(&self, name: &str) -> Result<&str, ForgeError> {
         self.params
             .iter()
             .find(|p| p.name == name)
@@ -233,11 +233,11 @@ impl Context {
             .ok_or_else(|| ForgeError::bad_request(format!("missing param `{}`", name)))
     }
 
-    fn get_param(&self, name: &str) -> Option<&str> {
+    pub fn get_param(&self, name: &str) -> Option<&str> {
         self.params.iter().find(|p| p.name == name).map(|p| p.value.as_str())
     }
 
-    fn get_param_or<'a>(&'a self, name: &str, default: &'a str) -> &'a str {
+    pub fn get_param_or<'a>(&'a self, name: &str, default: &'a str) -> &'a str {
         self.get_param(name).unwrap_or(default)
     }
 }

@@ -145,9 +145,13 @@ impl RouterBuilder {
             map.insert(
                 key,
                 Segment {
-                    controller: p.controller.clone(),
-                    middlewares: p.middlewares.clone(),
-                    handlers: Vec::new(), // TODO hay que implementarlo
+                    // controller: p.controller.clone(),
+                    // middlewares: p.middlewares.clone(),
+                    handlers: {
+                        let mut h = p.middlewares.clone();
+                        h.push(p.controller.clone());
+                        h
+                    },
                     params: Vec::new(),
                     static_routes: AHashMap::new(),
                     dinamic_routes: None,
@@ -201,8 +205,13 @@ impl RouterBuilder {
                 }
 
                 if is_last {
-                    node.controller = p.controller.clone();
-                    node.middlewares = p.middlewares.clone();
+                    // node.controller = p.controller.clone();
+                    // node.middlewares = p.middlewares.clone();
+                    node.handlers = {
+                        let mut h = p.middlewares.clone();
+                        h.push(p.controller.clone());
+                        h
+                    };
                     node.params = p.params.clone();
                     node.is_dinamic = p.is_dinamic;
                     node.is_wildcard = p.is_wildcard;
