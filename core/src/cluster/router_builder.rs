@@ -173,7 +173,7 @@
 //                         None => {
 //                             let msg = format!("dynamic route [{}] node is None", p.path.clone());
 //                             log::critical(&msg, None);
-//                             return Err(ForgeError::internal_server_error(msg));
+//                             return Err(ForgeError::internal().message(msg));
 //                         }
 //                     };
 //                 } else {
@@ -185,7 +185,7 @@
 //                         None => {
 //                             let msg = format!("static route [{}] node is None", p.path.clone());
 //                             log::critical(&msg, None);
-//                             return Err(ForgeError::internal_server_error(msg));
+//                             return Err(ForgeError::internal().message(msg));
 //                         }
 //                     };
 //                 }

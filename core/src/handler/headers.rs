@@ -73,8 +73,11 @@ pub fn set(map: &mut HeaderMap, name: HeaderName, value: &str) -> Result<(), For
             return Ok(());
         }
     }
-    let hv = HeaderValue::from_str(value)
-        .map_err(|e| ForgeError::bad_request(format!("invalid header value for '{}'", name)).caused_by(e))?;
+    let hv = HeaderValue::from_str(value).map_err(|e| {
+        ForgeError::bad_request()
+            .message(format!("invalid header value for '{}'", name))
+            .caused_by(e)
+    })?;
     map.insert(name, hv);
     Ok(())
 }

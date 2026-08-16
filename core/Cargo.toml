@@ -25,7 +25,7 @@ bytes = "1.12.1"
 
 # ================ tls ================
 rcgen        = "0.13"
-rustls = { version = "0.23", features = ["ring"] }
+rustls = { version = "0.23"}
 tokio-rustls = "0.26"
 rustls-pemfile = "2"
 

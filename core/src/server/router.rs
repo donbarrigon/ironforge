@@ -1,5 +1,6 @@
 use crate::error::ForgeError;
 use crate::handler::context::Context;
+use crate::server::RouterBuilder;
 use ahash::AHashMap;
 use std::future::Future;
 use std::pin::Pin;
@@ -105,8 +106,14 @@ impl Router {
             not_found_controller: not_found,
         }
     }
+
+    pub fn build(name: impl Into<String>, f: impl FnOnce(&mut RouterBuilder)) -> Self {
+        let mut rb = RouterBuilder::new(name);
+        f(&mut rb);
+        rb.build().unwrap()
+    }
 }
 
 pub async fn default_not_found(c: &mut Context) -> Result<(), ForgeError> {
-    c.response_error(ForgeError::not_found(ForgeError::NOT_FOUND_MSG))
+    c.response_error(ForgeError::not_found())
 }

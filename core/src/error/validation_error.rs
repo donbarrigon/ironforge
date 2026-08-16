@@ -76,14 +76,14 @@ impl ValidationError {
     pub fn errors(&mut self, locale: String) -> Result<(), ForgeError> {
         if self.errors.len() > 0 {
             self.translate(locale);
-            return Err(ForgeError::unprocessable_entity(ForgeError::UNPROCESSABLE_ENTITY_MSG).with_data(&*self));
+            return Err(ForgeError::unprocessable_entity().with_data(&*self));
         }
 
         if self.collection.len() > 0 {
             for col in self.collection.iter_mut() {
                 col.1.translate(locale.clone());
             }
-            return Err(ForgeError::unprocessable_entity(ForgeError::UNPROCESSABLE_ENTITY_MSG).with_data(&*self));
+            return Err(ForgeError::unprocessable_entity().with_data(&*self));
         }
 
         Ok(())

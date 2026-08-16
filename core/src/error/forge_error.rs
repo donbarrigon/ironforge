@@ -88,7 +88,8 @@ impl ForgeError {
     // ─── Status message constants ───────────────────────────────────────────
     // Texto canónico en inglés (idéntico a StatusCode::canonical_reason(),
     // verificado contra el crate `http`), pero como const propia: accesible
-    // en compile-time, sin necesitar una instancia de StatusCode en la mano.
+    // en compile-time, sin necesitar una instancia de StatusCode en la mano,
+    // y desacoplada de que hyper cambie el texto en el futuro.
 
     pub const BAD_REQUEST_MSG: &'static str = "Bad Request";
     pub const UNAUTHORIZED_MSG: &'static str = "Unauthorized";
@@ -144,6 +145,12 @@ impl ForgeError {
 
     // ─── Builder ──────────────────────────────────────────────────────────────
 
+    /// Sobreescribe el mensaje por defecto con uno propio.
+    pub fn message(mut self, message: impl Into<String>) -> Self {
+        self.message = message.into();
+        self
+    }
+
     /// Adjunta la causa del error (solo visible en modo debug)
     pub fn caused_by(mut self, cause: impl std::error::Error + 'static) -> Self {
         if env().app.debug {
@@ -160,162 +167,174 @@ impl ForgeError {
 
     // ─── 4xx Client Errors ───────────────────────────────────────────────────
 
-    pub fn bad_request(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::BAD_REQUEST, message)
+    pub fn bad_request() -> Self {
+        Self::new(Self::BAD_REQUEST, Self::BAD_REQUEST_MSG)
     }
 
-    pub fn unauthorized(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::UNAUTHORIZED, message)
+    pub fn unauthorized() -> Self {
+        Self::new(Self::UNAUTHORIZED, Self::UNAUTHORIZED_MSG)
     }
 
-    pub fn payment_required(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::PAYMENT_REQUIRED, message)
+    pub fn payment_required() -> Self {
+        Self::new(Self::PAYMENT_REQUIRED, Self::PAYMENT_REQUIRED_MSG)
     }
 
-    pub fn forbidden(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::FORBIDDEN, message)
+    pub fn forbidden() -> Self {
+        Self::new(Self::FORBIDDEN, Self::FORBIDDEN_MSG)
     }
 
-    pub fn not_found(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::NOT_FOUND, message)
+    pub fn not_found() -> Self {
+        Self::new(Self::NOT_FOUND, Self::NOT_FOUND_MSG)
     }
 
-    pub fn method_not_allowed(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::METHOD_NOT_ALLOWED, message)
+    pub fn method_not_allowed() -> Self {
+        Self::new(Self::METHOD_NOT_ALLOWED, Self::METHOD_NOT_ALLOWED_MSG)
     }
 
-    pub fn not_acceptable(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::NOT_ACCEPTABLE, message)
+    pub fn not_acceptable() -> Self {
+        Self::new(Self::NOT_ACCEPTABLE, Self::NOT_ACCEPTABLE_MSG)
     }
 
-    pub fn proxy_authentication_required(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::PROXY_AUTHENTICATION_REQUIRED, message)
+    pub fn proxy_authentication_required() -> Self {
+        Self::new(
+            Self::PROXY_AUTHENTICATION_REQUIRED,
+            Self::PROXY_AUTHENTICATION_REQUIRED_MSG,
+        )
     }
 
-    pub fn request_timeout(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::REQUEST_TIMEOUT, message)
+    pub fn request_timeout() -> Self {
+        Self::new(Self::REQUEST_TIMEOUT, Self::REQUEST_TIMEOUT_MSG)
     }
 
-    pub fn conflict(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::CONFLICT, message)
+    pub fn conflict() -> Self {
+        Self::new(Self::CONFLICT, Self::CONFLICT_MSG)
     }
 
-    pub fn gone(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::GONE, message)
+    pub fn gone() -> Self {
+        Self::new(Self::GONE, Self::GONE_MSG)
     }
 
-    pub fn length_required(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::LENGTH_REQUIRED, message)
+    pub fn length_required() -> Self {
+        Self::new(Self::LENGTH_REQUIRED, Self::LENGTH_REQUIRED_MSG)
     }
 
-    pub fn precondition_failed(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::PRECONDITION_FAILED, message)
+    pub fn precondition_failed() -> Self {
+        Self::new(Self::PRECONDITION_FAILED, Self::PRECONDITION_FAILED_MSG)
     }
 
-    pub fn payload_too_large(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::PAYLOAD_TOO_LARGE, message)
+    pub fn payload_too_large() -> Self {
+        Self::new(Self::PAYLOAD_TOO_LARGE, Self::PAYLOAD_TOO_LARGE_MSG)
     }
 
-    pub fn uri_too_long(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::URI_TOO_LONG, message)
+    pub fn uri_too_long() -> Self {
+        Self::new(Self::URI_TOO_LONG, Self::URI_TOO_LONG_MSG)
     }
 
-    pub fn unsupported_media_type(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::UNSUPPORTED_MEDIA_TYPE, message)
+    pub fn unsupported_media_type() -> Self {
+        Self::new(Self::UNSUPPORTED_MEDIA_TYPE, Self::UNSUPPORTED_MEDIA_TYPE_MSG)
     }
 
-    pub fn range_not_satisfiable(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::RANGE_NOT_SATISFIABLE, message)
+    pub fn range_not_satisfiable() -> Self {
+        Self::new(Self::RANGE_NOT_SATISFIABLE, Self::RANGE_NOT_SATISFIABLE_MSG)
     }
 
-    pub fn expectation_failed(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::EXPECTATION_FAILED, message)
+    pub fn expectation_failed() -> Self {
+        Self::new(Self::EXPECTATION_FAILED, Self::EXPECTATION_FAILED_MSG)
     }
 
-    pub fn im_a_teapot(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::IM_A_TEAPOT, message)
+    pub fn im_a_teapot() -> Self {
+        Self::new(Self::IM_A_TEAPOT, Self::IM_A_TEAPOT_MSG)
     }
 
-    pub fn misdirected_request(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::MISDIRECTED_REQUEST, message)
+    pub fn misdirected_request() -> Self {
+        Self::new(Self::MISDIRECTED_REQUEST, Self::MISDIRECTED_REQUEST_MSG)
     }
 
-    pub fn unprocessable_entity(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::UNPROCESSABLE_ENTITY, message)
+    pub fn unprocessable_entity() -> Self {
+        Self::new(Self::UNPROCESSABLE_ENTITY, Self::UNPROCESSABLE_ENTITY_MSG)
     }
 
-    pub fn locked(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::LOCKED, message)
+    pub fn locked() -> Self {
+        Self::new(Self::LOCKED, Self::LOCKED_MSG)
     }
 
-    pub fn failed_dependency(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::FAILED_DEPENDENCY, message)
+    pub fn failed_dependency() -> Self {
+        Self::new(Self::FAILED_DEPENDENCY, Self::FAILED_DEPENDENCY_MSG)
     }
 
-    pub fn upgrade_required(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::UPGRADE_REQUIRED, message)
+    pub fn upgrade_required() -> Self {
+        Self::new(Self::UPGRADE_REQUIRED, Self::UPGRADE_REQUIRED_MSG)
     }
 
-    pub fn precondition_required(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::PRECONDITION_REQUIRED, message)
+    pub fn precondition_required() -> Self {
+        Self::new(Self::PRECONDITION_REQUIRED, Self::PRECONDITION_REQUIRED_MSG)
     }
 
-    pub fn too_many_requests(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::TOO_MANY_REQUESTS, message)
+    pub fn too_many_requests() -> Self {
+        Self::new(Self::TOO_MANY_REQUESTS, Self::TOO_MANY_REQUESTS_MSG)
     }
 
-    pub fn request_header_fields_too_large(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE, message)
+    pub fn request_header_fields_too_large() -> Self {
+        Self::new(
+            Self::REQUEST_HEADER_FIELDS_TOO_LARGE,
+            Self::REQUEST_HEADER_FIELDS_TOO_LARGE_MSG,
+        )
     }
 
-    pub fn unavailable_for_legal_reasons(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS, message)
+    pub fn unavailable_for_legal_reasons() -> Self {
+        Self::new(
+            Self::UNAVAILABLE_FOR_LEGAL_REASONS,
+            Self::UNAVAILABLE_FOR_LEGAL_REASONS_MSG,
+        )
     }
 
     // ─── 5xx Server Errors ───────────────────────────────────────────────────
 
-    pub fn internal_server_error(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::INTERNAL_SERVER_ERROR, message)
+    pub fn internal() -> Self {
+        Self::new(Self::INTERNAL_SERVER_ERROR, Self::INTERNAL_SERVER_ERROR_MSG)
     }
 
-    pub fn not_implemented(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::NOT_IMPLEMENTED, message)
+    pub fn not_implemented() -> Self {
+        Self::new(Self::NOT_IMPLEMENTED, Self::NOT_IMPLEMENTED_MSG)
     }
 
-    pub fn bad_gateway(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::BAD_GATEWAY, message)
+    pub fn bad_gateway() -> Self {
+        Self::new(Self::BAD_GATEWAY, Self::BAD_GATEWAY_MSG)
     }
 
-    pub fn service_unavailable(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::SERVICE_UNAVAILABLE, message)
+    pub fn service_unavailable() -> Self {
+        Self::new(Self::SERVICE_UNAVAILABLE, Self::SERVICE_UNAVAILABLE_MSG)
     }
 
-    pub fn gateway_timeout(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::GATEWAY_TIMEOUT, message)
+    pub fn gateway_timeout() -> Self {
+        Self::new(Self::GATEWAY_TIMEOUT, Self::GATEWAY_TIMEOUT_MSG)
     }
 
-    pub fn http_version_not_supported(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::HTTP_VERSION_NOT_SUPPORTED, message)
+    pub fn http_version_not_supported() -> Self {
+        Self::new(Self::HTTP_VERSION_NOT_SUPPORTED, Self::HTTP_VERSION_NOT_SUPPORTED_MSG)
     }
 
-    pub fn variant_also_negotiates(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::VARIANT_ALSO_NEGOTIATES, message)
+    pub fn variant_also_negotiates() -> Self {
+        Self::new(Self::VARIANT_ALSO_NEGOTIATES, Self::VARIANT_ALSO_NEGOTIATES_MSG)
     }
 
-    pub fn insufficient_storage(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::INSUFFICIENT_STORAGE, message)
+    pub fn insufficient_storage() -> Self {
+        Self::new(Self::INSUFFICIENT_STORAGE, Self::INSUFFICIENT_STORAGE_MSG)
     }
 
-    pub fn loop_detected(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::LOOP_DETECTED, message)
+    pub fn loop_detected() -> Self {
+        Self::new(Self::LOOP_DETECTED, Self::LOOP_DETECTED_MSG)
     }
 
-    pub fn not_extended(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::NOT_EXTENDED, message)
+    pub fn not_extended() -> Self {
+        Self::new(Self::NOT_EXTENDED, Self::NOT_EXTENDED_MSG)
     }
 
-    pub fn network_authentication_required(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::NETWORK_AUTHENTICATION_REQUIRED, message)
+    pub fn network_authentication_required() -> Self {
+        Self::new(
+            Self::NETWORK_AUTHENTICATION_REQUIRED,
+            Self::NETWORK_AUTHENTICATION_REQUIRED_MSG,
+        )
     }
 }
 

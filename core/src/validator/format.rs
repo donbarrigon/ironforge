@@ -337,8 +337,7 @@ impl Format for str {
         // final y el trabajo duplicado ocasional es preferible a
         // serializar todo detrás de un solo write-lock por cada
         // validación.
-        let re = Regex::new(pattern)
-            .map_err(|e| ForgeError::internal_server_error(ForgeError::INTERNAL_SERVER_ERROR_MSG).caused_by(e))?;
+        let re = Regex::new(pattern).map_err(|e| ForgeError::internal().caused_by(e))?;
 
         let is_match = re.is_match(self);
 

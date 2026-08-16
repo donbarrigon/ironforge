@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 pub struct Env {
     pub app: AppEnv,
     pub db: DbEnv,
-    pub server: Vec<ServerEnv>,
+    pub server: ServerEnv,
     pub log: LogEnv,
 }
 
@@ -48,7 +48,7 @@ pub fn env() -> &'static Env {
 }
 
 pub fn load_env() -> Result<(), Box<dyn std::error::Error>> {
-    let content = std::fs::read_to_string("config/env.json")?;
+    let content = std::fs::read_to_string("env.json")?;
     let config: Env = serde_json::from_str(&content)?;
     ENV.set(config)
         .map_err(|_| "ENV has already been initialized — load_env() can only be called once".into())

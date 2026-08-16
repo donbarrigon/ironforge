@@ -4,11 +4,14 @@ use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto;
+
 use rustls::ServerConfig;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tokio_rustls::TlsAcceptor;
 
+use crate::config;
+use crate::config::env;
 use crate::server::dispatch::dispatch;
 use crate::server::router::Router;
 
@@ -35,6 +38,27 @@ impl Server {
             auto_cert: false,
             router: Box::leak(Box::new(router)),
         }
+    }
+
+    pub async fn start(router: Router) -> Result<(), Box<dyn std::error::Error>> {
+        // let _ = rustls::crypto::ring::default_provider().install_default(); // ring
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default(); // aws-lc-rs
+
+        config::init()?;
+
+        let addr = format!("{}:{}", env().server.host, env().server.port)
+            .parse()
+            .expect("invalid address check env.json");
+
+        let mut server = Self {
+            addr,
+            shutdown_sender: None,
+            https: env().server.https,
+            auto_cert: env().server.auto_cert,
+            router: Box::leak(Box::new(router)),
+        };
+
+        server.listen().await
     }
 
     pub fn enable_https(&mut self) -> &mut Self {

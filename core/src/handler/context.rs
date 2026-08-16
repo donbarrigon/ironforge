@@ -89,9 +89,11 @@ impl Context {
         if let Some(cached) = &self.body_cache {
             return Ok(cached.clone()); // Bytes::clone es barato (Arc por dentro)
         }
-        let collected = http_body_util::BodyExt::collect(self.r.body_mut())
-            .await
-            .map_err(|e| ForgeError::bad_request("failed to read request body").caused_by(e))?;
+        let collected = http_body_util::BodyExt::collect(self.r.body_mut()).await.map_err(|e| {
+            ForgeError::bad_request()
+                .message("failed to read request body")
+                .caused_by(e)
+        })?;
         let bytes = collected.to_bytes();
         self.body_cache = Some(bytes.clone());
         Ok(bytes)
@@ -99,18 +101,15 @@ impl Context {
 
     fn decode<T: DeserializeOwned>(&self, bytes: &[u8]) -> Result<T, ForgeError> {
         match self.content_type() {
-            ContentType::MsgPack => {
-                rmp_serde::from_slice(bytes).map_err(|e| ForgeError::bad_request("invalid msgpack body").caused_by(e))
-            }
-            ContentType::Json => {
-                serde_json::from_slice(bytes).map_err(|e| ForgeError::bad_request("invalid json body").caused_by(e))
-            }
+            ContentType::MsgPack => rmp_serde::from_slice(bytes)
+                .map_err(|e| ForgeError::bad_request().message("invalid msgpack body").caused_by(e)),
+            ContentType::Json => serde_json::from_slice(bytes)
+                .map_err(|e| ForgeError::bad_request().message("invalid json body").caused_by(e)),
             ContentType::Form => serde_urlencoded::from_bytes(bytes)
-                .map_err(|e| ForgeError::bad_request("invalid form body").caused_by(e)),
-            ContentType::Yaml => {
-                serde_yaml::from_slice(bytes).map_err(|e| ForgeError::bad_request("invalid yaml body").caused_by(e))
-            }
-            other => Err(ForgeError::unsupported_media_type(format!(
+                .map_err(|e| ForgeError::bad_request().message("invalid form body").caused_by(e)),
+            ContentType::Yaml => serde_yaml::from_slice(bytes)
+                .map_err(|e| ForgeError::bad_request().message("invalid yaml body").caused_by(e)),
+            other => Err(ForgeError::unsupported_media_type().message(format!(
                 "cannot decode body as struct from content-type '{}'",
                 other.mime()
             ))),
@@ -230,7 +229,7 @@ impl Context {
             .iter()
             .find(|p| p.name == name)
             .map(|p| p.value.as_str())
-            .ok_or_else(|| ForgeError::bad_request(format!("missing param `{}`", name)))
+            .ok_or_else(|| ForgeError::bad_request().message(format!("missing param `{}`", name)))
     }
 
     pub fn get_param(&self, name: &str) -> Option<&str> {
