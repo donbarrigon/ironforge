@@ -10,6 +10,7 @@ pub struct Promise<T> {
 }
 
 impl<T: Send + 'static> Promise<T> {
+    /// new creates a new Promise from Future
     pub fn new<F>(fut: F) -> Self
     where
         F: Future<Output = Result<T, ForgeError>> + Send + 'static,
@@ -54,6 +55,83 @@ impl<T: Send + 'static> Promise<T> {
                 Err(e) => f(e).await,
             }
         });
+    }
+
+    pub async fn all<F>(fut: Vec<F>) -> Result<Vec<T>, ForgeError>
+    where
+        F: Future<Output = Result<T, ForgeError>> + Send + 'static,
+    {
+        let h: Vec<JoinHandle<Result<T, ForgeError>>> = fut.into_iter().map(|f| tokio::spawn(f)).collect();
+
+        let res = futures::future::try_join_all(h).await.map_err(|e| {
+            ForgeError::internal()
+                .message(format!("one of the tasks in Promise::all did not complete normally"))
+                .caused_by(e)
+        })?;
+
+        res.into_iter().collect::<Result<Vec<T>, ForgeError>>()
+
+        // let result = futures::future::join_all(h).await;
+        // let mut ret = Vec::with_capacity(result.len());
+        // for r in result {
+        //     match r {
+        //         Ok(Ok(v)) => ret.push(v),
+        //         Ok(Err(e)) => return Err(e),
+        //         Err(e) => return Err(ForgeError::internal().message("task failed").caused_by(e)),
+        //     }
+        // }
+        // Ok(ret)
+    }
+
+    pub async fn all_selected<F>(fut: Vec<F>) -> Vec<Result<T, ForgeError>>
+    where
+        F: Future<Output = Result<T, ForgeError>> + Send + 'static,
+    {
+        let h: Vec<JoinHandle<Result<T, ForgeError>>> = fut.into_iter().map(|f| tokio::spawn(f)).collect();
+
+        let res = futures::future::join_all(h).await;
+
+        res.into_iter()
+            .map(|r| match r {
+                Ok(v) => v,
+                Err(e) => Err(ForgeError::internal().message("task failed").caused_by(e)),
+            })
+            .collect()
+    }
+
+    pub async fn race<F>(fut: Vec<F>) -> Result<T, ForgeError>
+    where
+        F: Future<Output = Result<T, ForgeError>> + Send + 'static,
+    {
+        let h: Vec<JoinHandle<Result<T, ForgeError>>> = fut.into_iter().map(|f| tokio::spawn(f)).collect();
+
+        let (res, i, _) = futures::future::select_all(h).await;
+
+        match res {
+            Ok(v) => v,
+            Err(e) => Err(ForgeError::internal()
+                .message(format!(
+                    "task at index {i} (the first to finish) did not complete normally"
+                ))
+                .caused_by(e)),
+        }
+    }
+
+    pub async fn any<F>(fut: Vec<F>) -> Result<T, ForgeError>
+    where
+        F: Future<Output = Result<T, ForgeError>> + Send + 'static,
+    {
+        let h: Vec<_> = fut
+            .into_iter()
+            .map(|f| {
+                Box::pin(async move {
+                    f.await
+                        .map_err(|e| ForgeError::internal().message("task failed").caused_by(e))
+                }) as Pin<Box<dyn Future<Output = Result<T, ForgeError>> + Send>>
+            })
+            .collect();
+
+        futures::future::select_ok(h).await.map(|(v, _r)| v)
     }
 }
 
