@@ -2,7 +2,7 @@ use crate::config::env;
 use backtrace::Backtrace;
 use hyper::StatusCode;
 use serde::{Serialize, Serializer};
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::fmt;
 
 // ─── ForgeError ─────────────────────────────────────────────────────────────
@@ -152,7 +152,7 @@ impl ForgeError {
     }
 
     /// Adjunta la causa del error (solo visible en modo debug)
-    pub fn caused_by(mut self, cause: impl std::error::Error + 'static) -> Self {
+    pub fn caused_by(mut self, cause: impl std::error::Error + Send + Sync + 'static) -> Self {
         if env().app.debug {
             self.cause = create_cause(Some(Box::new(cause)));
         }
@@ -348,12 +348,36 @@ fn get_stack() -> String {
     }
 }
 
-fn create_cause(cause: Option<Box<dyn std::error::Error>>) -> Option<Value> {
+// fn create_cause(cause: Option<Box<dyn std::error::Error + Send + Sync>>) -> Option<Value> {
+//     cause.map(|e| {
+//         serde_json::json!({
+//             "name":    std::any::type_name_of_val(&*e),
+//             "message": e.to_string(),
+//             "source":  e.source().map(|s| s.to_string()),
+//         })
+//     })
+// }
+
+/// Convierte un error de Rust en un JSON estructurado:
+/// El error principal tiene `name` y `message`, y las causas anidadas
+/// van en un array de strings llamado `chain`.
+pub fn create_cause(cause: Option<Box<dyn std::error::Error + Send + Sync>>) -> Option<Value> {
     cause.map(|e| {
-        serde_json::json!({
-            "name":    std::any::type_name_of_val(&*e),
-            "message": e.to_string(),
-            "source":  e.source().map(|s| s.to_string()),
+        let root_name = std::any::type_name_of_val(&*e);
+        let root_message = e.to_string();
+
+        let mut chain: Vec<String> = Vec::new();
+        let mut current = e.source();
+
+        while let Some(source) = current {
+            chain.push(source.to_string());
+            current = source.source();
+        }
+
+        json!({
+            "name": root_name,
+            "message": root_message,
+            "chain": chain
         })
     })
 }

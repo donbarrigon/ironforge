@@ -18,6 +18,8 @@ pub use config::load_env;
 pub mod handler;
 pub use handler::Context;
 
+pub mod db;
+
 pub mod validator;
 
 pub mod lang;

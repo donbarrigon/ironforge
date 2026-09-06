@@ -51,4 +51,4 @@ futures = "0.3.28"
 regex = "1.13.1"
 
 [dependencies.mongodb]
-version = "3.6.0"
+version = "3.8.2"
