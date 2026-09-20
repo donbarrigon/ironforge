@@ -1,15 +1,20 @@
+use mongodb::Cursor;
 use mongodb::bson::{Document, doc, to_document};
 use mongodb::{Client, Collection, Database, bson::oid::ObjectId};
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 use serde_json::json;
 use std::str::FromStr;
 use std::sync::OnceLock;
 use tokio_stream::StreamExt;
 
+use crate::db::mongo_find::ODMFind;
 use crate::db::mongo_model::ODModel;
 use crate::{ForgeError, env, log};
 
 static ODMONGO: OnceLock<ODMongo> = OnceLock::new();
 
+#[derive(Clone)]
 pub struct ODMongo {
     pub db_name: String,
     pub client: Client,
@@ -302,7 +307,7 @@ impl ODMongo {
     }
 
     // ============================================================
-    // FIND ONE OPERATIONS
+    // FIND OPERATIONS
     // ============================================================
 
     pub async fn get_by_id<T: ODModel>(&self, id: ObjectId) -> Result<T, ForgeError> {
@@ -330,29 +335,6 @@ impl ODMongo {
         self.get_by_id(id).await
     }
 
-    pub async fn get_one<T: ODModel>(&self, filter: Document) -> Result<T, ForgeError> {
-        let res = self.coll::<T>(T::coll_name()).find_one(filter).await.map_err(|e| {
-            let msg = format!("Failed to find document");
-            log::error(&msg, Some(json!({ "mod":"odm::get_one","error": e.to_string() })));
-            ForgeError::internal().message(msg).caused_by(e)
-        })?;
-        match res {
-            Some(data) => Ok(data),
-            None => {
-                let msg = format!("Document not found");
-                // log::warning(
-                //     &msg,
-                //     Some(json!({ "mod":"odm::get_one","error": msg/*, "filter": filter*/ })),
-                // );
-                Err(ForgeError::not_found().message(msg))
-            }
-        }
-    }
-
-    // ============================================================
-    // FIND MANY OPERATIONS
-    // ============================================================
-
     pub async fn get_all<T: ODModel>(&self) -> Result<Vec<T>, ForgeError> {
         let mut cursor = self.coll::<T>(T::coll_name()).find(doc! {}).await.map_err(|e| {
             let msg = format!("Failed to find documents");
@@ -368,6 +350,14 @@ impl ODMongo {
             docs.push(doc);
         }
         Ok(docs)
+    }
+
+    pub fn find<T, U>(&self, filter: Document) -> ODMFind<T, U>
+    where
+        T: ODModel,
+        U: Serialize + DeserializeOwned + Send + Sync + 'static,
+    {
+        ODMFind::new(self.clone(), filter)
     }
 
     // ============================================================

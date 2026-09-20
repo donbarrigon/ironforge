@@ -3,7 +3,10 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
     ForgeError,
-    db::mongo_odm::{ODMongo, odm},
+    db::{
+        mongo_find::ODMFind,
+        mongo_odm::{ODMongo, odm},
+    },
 };
 
 pub trait ODModel: Serialize + DeserializeOwned + Send + Sync + Clone + 'static {
@@ -15,6 +18,8 @@ pub trait ODModel: Serialize + DeserializeOwned + Send + Sync + Clone + 'static 
         self.set_id(id);
         Ok(())
     }
+
+    // == Hooks ===================================================
 
     fn before_create(&mut self) -> Result<(), ForgeError> {
         Ok(())
@@ -41,6 +46,8 @@ pub trait ODModel: Serialize + DeserializeOwned + Send + Sync + Clone + 'static 
         Ok(())
     }
 
+    // == CRUD ====================================================
+
     fn create(&mut self) -> impl Future<Output = Result<(), ForgeError>> + Send {
         async move { odm()?.create(self).await }
     }
@@ -61,6 +68,8 @@ pub trait ODModel: Serialize + DeserializeOwned + Send + Sync + Clone + 'static 
         async move { odm()?.delete(self).await }
     }
 
+    // == Getting previus =========================================
+
     fn update_getting_previous(&mut self) -> impl Future<Output = Result<Self, ForgeError>> + Send {
         async move { odm()?.update_getting_previous(self).await }
     }
@@ -73,6 +82,8 @@ pub trait ODModel: Serialize + DeserializeOwned + Send + Sync + Clone + 'static 
         async move { odm()?.delete_getting_previous(id).await }
     }
 
+    // == Getters =================================================
+
     fn get_by_id(id: ObjectId) -> impl Future<Output = Result<Self, ForgeError>> + Send {
         async move { odm()?.get_by_id(id).await }
     }
@@ -81,11 +92,14 @@ pub trait ODModel: Serialize + DeserializeOwned + Send + Sync + Clone + 'static 
         async move { odm()?.get_by_hex_id(hex_id).await }
     }
 
-    fn get_one(filter: Document) -> impl Future<Output = Result<Self, ForgeError>> + Send {
-        async move { odm()?.get_one(filter).await }
-    }
-
     fn get_all() -> impl Future<Output = Result<Vec<Self>, ForgeError>> + Send {
         async move { odm()?.get_all().await }
+    }
+
+    fn find<U>(filter: Document) -> Result<ODMFind<Self, U>, ForgeError>
+    where
+        U: Serialize + DeserializeOwned + Send + Sync + 'static,
+    {
+        Ok(odm()?.find(filter))
     }
 }
