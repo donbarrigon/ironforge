@@ -1,5 +1,5 @@
-use mongodb::Cursor;
 use mongodb::bson::{Document, doc, to_document};
+use mongodb::results::UpdateResult;
 use mongodb::{Client, Collection, Database, bson::oid::ObjectId};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -200,6 +200,78 @@ impl ODMongo {
 
         model.after_delete()?;
         Ok(())
+    }
+
+    // ============================================================
+    // CRUD MANY OPERATIONS
+    // ============================================================
+
+    pub async fn create_many<T: ODModel>(&self, docs: &mut Vec<T>) -> Result<(), ForgeError> {
+        let res = self
+            .coll::<T>(T::coll_name())
+            .insert_many(docs.iter())
+            .await
+            .map_err(|e| {
+                let msg = "Failed to create many documents".to_string();
+
+                // Intenta extraer detalle estructurado del error, si el driver lo expone
+                let error_detail = json!({
+                    "mod": "odm::create_many",
+                    "error": e.to_string(),
+                    "kind": format!("{:?}", e.kind), // Debug del ErrorKind completo, suele traer más contexto
+                });
+
+                log::error(&msg, Some(error_detail.clone()));
+
+                ForgeError::internal().message(msg).caused_by(e).with_data(error_detail)
+            })?;
+
+        let mut errs: Vec<String> = Vec::new();
+        for (k, v) in res.inserted_ids {
+            match v.as_object_id() {
+                Some(id) => docs[k].set_id(id),
+                None => {
+                    let msg = format!("the document number [{}] has no id", k);
+                    log::error(
+                        &msg,
+                        Some(json!({ "mod":"odm::create_many","error": "v.as_object_id() == None" })),
+                    );
+                    errs.push(msg);
+                }
+            };
+        }
+
+        if errs.len() > 0 {
+            return Err(ForgeError::internal()
+                .message("failed to get inserted ids")
+                .with_data(errs));
+        }
+        Ok(())
+    }
+
+    pub async fn update_many<T: ODModel>(
+        &self,
+        filter: Document,
+        update: Document,
+    ) -> Result<UpdateResult, ForgeError> {
+        let res = self
+            .coll::<T>(T::coll_name())
+            .update_many(filter, update)
+            .await
+            .map_err(|e| {
+                let msg = format!("Failed to update many documents");
+                log::error(&msg, Some(json!({ "mod":"odm::update_many","error": e.to_string() })));
+                ForgeError::internal().message(msg).caused_by(e)
+            })?;
+        // if res.matched_count == 0 {
+        //     let msg = format!("No documents matched the filter");
+        //     log::warning(
+        //         &msg,
+        //         Some(json!({ "mod":"odm::update_many","error": "res.matched_count == 0", "filter": filter })),
+        //     );
+        //     return Err(ForgeError::not_found().message(msg));
+        // }
+        Ok(res)
     }
 
     // ============================================================
