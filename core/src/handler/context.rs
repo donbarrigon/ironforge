@@ -126,10 +126,12 @@ impl Context {
     {
         let bytes = self.raw_body().await?;
         let mut data: T = self.decode(&bytes)?;
-        let mut ve = data.validate(self);
-        match ve.errors(self.locale.clone()) {
-            Ok(_) => return Ok(data),
-            Err(e) => return Err(e),
+        match data.validate(self) {
+            Ok(()) => return Ok(data),
+            Err(mut ve) => match ve.errors(self.locale.clone()) {
+                Ok(_) => return Ok(data),
+                Err(e) => return Err(e),
+            },
         }
     }
 

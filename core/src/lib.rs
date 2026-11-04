@@ -20,6 +20,8 @@ pub use handler::Context;
 
 pub mod db;
 
+pub mod cache;
+
 pub mod validator;
 
 pub mod lang;

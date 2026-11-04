@@ -1,16 +1,21 @@
 // ironforge-macros/src/rules.rs
 //
-// Implementa la proc-macro `rules!`, usada así:
+// Implementa la proc-macro `rules!`, usada así dentro de `validate`:
 //
-//   let mut err = rules! {
-//       self, c,
-//       name("nombreCompleto") => [ required(), min(3), max(255) ],
-//       email => [ required(), email() ],
-//       age => [
-//           !empty().msg("la edad no puede estar vacía"),
-//           !between(18, 62).msg("la edad debe estar entre 18 y 62"),
-//       ],
-//   };
+//   impl Validator for UserRegisterValidator {
+//       fn validate(&mut self, c: &mut Context) -> Result<(), ValidationError> {
+//           rules! {
+//               self, c,
+//               nickname("nickName") => [ required(), min(3), max(255) ],
+//               email => [ required(), re_email() ],
+//               phone => [ required(), re_phone() ],
+//               age => [
+//                   !empty().msg("la edad no puede estar vacía"),
+//                   !between(18, 62).msg("la edad debe estar entre 18 y 62"),
+//               ],
+//           }
+//       }
+//   }
 //
 // Nota de sintaxis: un macro tipo función solo acepta UN grupo
 // delimitado (`{...}`, `(...)` o `[...]`). Por eso todo -- `self`, `c`
@@ -18,33 +23,80 @@
 // como `rules!(self, c) { ... }` (dos grupos seguidos no es sintaxis
 // válida de invocación de macro en Rust).
 //
+// La macro se expande a una expresión de tipo `Result<(), ValidationError>`,
+// por eso puede ser directamente el cuerpo de `validate`.
+//
 // Expansión generada (equivalente a lo que harías a mano):
 //
 //   {
-//       let mut err = self.prepare_for_validation(c);
+//       use ::ironforge::validator::required::*;   // traits + MSG_*
+//       use ::ironforge::validator::range::*;
+//       use ::ironforge::validator::range_time::*;
+//       use ::ironforge::validator::format::*;
+//       use ::ironforge::validator::membership::*;
+//       use ::ironforge::validator::Validator as _;
+//
+//       let mut err: ValidationError = match self.prepare_for_validation(c) {
+//           Ok(()) => ValidationError::new(),
+//           Err(e) => e,
+//       };
 //       {
-//           let fe = err.push_field("nombreCompleto".to_string());
-//           if !(self.name.required()) {
+//           let mut msgs: Vec<(String, Placeholders)> = Vec::new();
+//           if !(self.nickname.required()) {
 //               let mut placeholders: Placeholders = Vec::new();
-//               placeholders.push(("field", "nombreCompleto".to_string()));
-//               fe.push((MSG_REQUIRED.to_string(), placeholders));
+//               placeholders.push(("field", "nickName".to_string()));
+//               msgs.push((MSG_REQUIRED.to_string(), placeholders));
 //           }
-//           if !(self.name.min(3)) {
+//           if !(Range::min(&self.nickname, 3)) {
 //               let mut placeholders: Placeholders = Vec::new();
-//               placeholders.push(("field", "nombreCompleto".to_string()));
+//               placeholders.push(("field", "nickName".to_string()));
 //               placeholders.push(("min", (3).to_string()));
-//               fe.push((MSG_MIN.to_string(), placeholders));
+//               msgs.push((MSG_MIN.to_string(), placeholders));
 //           }
 //           // ... max(255) similar ...
+//           if !msgs.is_empty() {
+//               let fe = err.push_field("nickName".to_string());
+//               for m in msgs { fe.push(m); }
+//           }
 //       }
 //       { /* bloque de "email" */ }
 //       { /* bloque de "age", con negación */ }
-//       err
+//       if err.has_errors() { Err(err) } else { Ok(()) }
 //   }
 //
-// El macro NO llama `validate()` -- eso lo sigue haciendo la firma del
-// trait `Validator`. `rules!` solo produce el `ValidationError` que
-// `validate()` retorna.
+// Decisiones importantes:
+//
+// - Las rutas del código generado son absolutas (`::ironforge::...`)
+//   porque `crate::` dentro de una proc-macro se resuelve en el crate
+//   que la invoca (ej. spanails), no en ironforge. Los módulos
+//   `validator::{required, range, range_time, format, membership}` y
+//   `error::validation_error` deben ser `pub`. La macro trae a scope los
+//   traits y las constantes `MSG_*` por sí sola: quien la use no importa
+//   nada de eso.
+//
+// - `min`, `max`, `gt` y `lt` chocan con `Ord::min/max` y
+//   `PartialOrd::gt/lt` de la librería estándar (que se resuelven primero
+//   en la sintaxis `x.min(3)` porque toman `self` por valor). Por eso
+//   para esos cuatro la macro llama el trait explícitamente:
+//   `Range::min(&x, 3)`.
+//
+// - Los métodos de `Format` se llaman `re_email`, `re_phone`, etc., pero
+//   sus mensajes por defecto son `MSG_EMAIL`, `MSG_PHONE`, etc. (sin el
+//   prefijo `re_`). La macro quita el prefijo al buscar el mensaje. La
+//   única excepción es `re_ex`, cuyo mensaje es `MSG_RE_EX`.
+//
+// - Un campo solo se registra en el `ValidationError` si tiene al menos
+//   un mensaje. Si se registrara siempre, `has_errors()` sería siempre
+//   `true` (por los `FieldError` vacíos) y la validación nunca pasaría.
+//
+// - Si `prepare_for_validation` falla, su ValidationError se usa como base
+//   y se siguen acumulando los errores de los campos. Si prefieres cortar
+//   temprano, cambia `Err(e) => e` por `Err(e) => return Err(e)` en
+//   `rules_impl` (funciona porque la macro se expande dentro de `validate`).
+//
+// - Si algún día usas `rules!` dentro del propio crate ironforge, agrega
+//   `extern crate self as ironforge;` en su `lib.rs` para que las rutas
+//   `::ironforge::...` resuelvan.
 
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
@@ -177,11 +229,38 @@ pub fn rules_impl(input: TokenStream) -> TokenStream {
 
     let field_blocks: Vec<TokenStream2> = fields.iter().map(|field| gen_field_block(&self_expr, field)).collect();
 
+    // La expresión resultante es un `Result<(), ValidationError>`:
+    // - los `use` traen a scope (solo dentro de este bloque) los traits de
+    //   reglas y las constantes `MSG_*`, así quien invoca no importa nada
+    // - parte de lo que devuelva `prepare_for_validation` (su error, si
+    //   falló, se conserva y se sigue acumulando sobre él)
+    // - al final, si hay errores retorna `Err(err)`, si no `Ok(())`
     let expanded = quote! {
         {
-            let mut err = #self_expr.prepare_for_validation(#ctx_expr);
+            #[allow(unused_imports)]
+            use ::ironforge::validator::required::*;
+            #[allow(unused_imports)]
+            use ::ironforge::validator::range::*;
+            #[allow(unused_imports)]
+            use ::ironforge::validator::range_time::*;
+            #[allow(unused_imports)]
+            use ::ironforge::validator::format::*;
+            #[allow(unused_imports)]
+            use ::ironforge::validator::membership::*;
+            #[allow(unused_imports)]
+            use ::ironforge::validator::Validator as _;
+
+            let mut err: ::ironforge::error::validation_error::ValidationError =
+                match #self_expr.prepare_for_validation(#ctx_expr) {
+                    Ok(()) => ::ironforge::error::validation_error::ValidationError::new(),
+                    Err(e) => e,
+                };
             #(#field_blocks)*
-            err
+            if err.has_errors() {
+                Err(err)
+            } else {
+                Ok(())
+            }
         }
     };
 
@@ -202,10 +281,20 @@ fn gen_field_block(self_expr: &Expr, field: &FieldBlock) -> TokenStream2 {
         .map(|rule| gen_rule_check(self_expr, field_ident, &json_name, rule))
         .collect();
 
+    // Los mensajes se acumulan primero en `msgs`, y el campo solo se
+    // registra en `err` si hay al menos uno. Si se llamara `push_field`
+    // siempre, quedarían `FieldError` vacíos y `has_errors()` daría
+    // `true` aunque todo fuera válido.
     quote! {
         {
-            let fe = err.push_field(#json_name.to_string());
+            let mut msgs: Vec<(String, ::ironforge::error::validation_error::Placeholders)> = Vec::new();
             #(#rule_checks)*
+            if !msgs.is_empty() {
+                let fe = err.push_field(#json_name.to_string());
+                for m in msgs {
+                    fe.push(m);
+                }
+            }
         }
     }
 }
@@ -214,16 +303,25 @@ fn gen_rule_check(self_expr: &Expr, field_ident: &Ident, json_name: &str, rule: 
     let method = &rule.method;
     let args = &rule.args;
     let negated = rule.negated;
+    let rule_name = method.to_string();
 
     // `re_ex` es la única regla que puede fallar en sí misma (patrón
     // dinámico que no compiló) -- se trata igual que un `static_regex!`
     // con patrón hardcodeado mal escrito: es un bug del desarrollador,
     // no un error de validación del dato, así que se panickea temprano
     // en vez de intentar reportarlo como un ValidationError.
-    let call = if method == "re_ex" {
+    //
+    // `min`, `max`, `gt` y `lt` se llaman con el trait explícito porque
+    // `Ord::min/max` y `PartialOrd::gt/lt` de std ganarían la resolución
+    // de `x.min(3)` (toman `self` por valor, se prueban antes que `&self`).
+    let call = if rule_name == "re_ex" {
         quote! {
             #self_expr.#field_ident.#method(#(#args),*)
                 .expect("re_ex: el patrón regex no compiló")
+        }
+    } else if matches!(rule_name.as_str(), "min" | "max" | "gt" | "lt") {
+        quote! {
+            ::ironforge::validator::range::Range::#method(&#self_expr.#field_ident, #(#args),*)
         }
     } else {
         quote! { #self_expr.#field_ident.#method(#(#args),*) }
@@ -274,22 +372,30 @@ fn gen_rule_check(self_expr: &Expr, field_ident: &Ident, json_name: &str, rule: 
 
     // Mensaje: si hay `.msg("...")`, se usa tal cual. Si no, se busca la
     // constante por defecto -- `MSG_<REGLA>` para la versión positiva,
-    // `MSG_NOT_<REGLA>` para la negada (`!regla()`). Debe existir y
-    // estar en scope (importada) donde se invoca `rules!`. Ej: `min` ->
-    // `MSG_MIN` / `MSG_NOT_MIN`; `is_in` -> `MSG_IS_IN` / `MSG_NOT_IS_IN`.
+    // `MSG_NOT_<REGLA>` para la negada (`!regla()`). Las constantes ya
+    // están en scope por los `use` que genera `rules_impl`.
+    //
+    // Las reglas de `Format` se llaman `re_<algo>` pero su mensaje es
+    // `MSG_<ALGO>` (sin `re_`): `re_email` -> `MSG_EMAIL`. La excepción
+    // es `re_ex`, que sí es `MSG_RE_EX`.
     let msg_expr = if let Some(lit) = &rule.msg {
         quote! { #lit.to_string() }
     } else {
         let prefix = if negated { "MSG_NOT_" } else { "MSG_" };
-        let msg_ident = format_ident!("{}{}", prefix, method.to_string().to_uppercase());
+        let msg_base: &str = if rule_name == "re_ex" {
+            &rule_name
+        } else {
+            rule_name.strip_prefix("re_").unwrap_or(&rule_name)
+        };
+        let msg_ident = format_ident!("{}{}", prefix, msg_base.to_uppercase());
         quote! { #msg_ident.to_string() }
     };
 
     quote! {
         if #condition {
-            let mut placeholders: crate::error::validation_error::Placeholders = Vec::new();
+            let mut placeholders: ::ironforge::error::validation_error::Placeholders = Vec::new();
             #(#placeholder_pushes)*
-            fe.push((#msg_expr, placeholders));
+            msgs.push((#msg_expr, placeholders));
         }
     }
 }

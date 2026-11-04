@@ -12,12 +12,12 @@ use crate::{error::validation_error::ValidationError, handler::context::Context}
 ///   como primer paso. `get_body` solo llama `rules()`, nunca
 ///   `prepare_for_validation()` directamente.
 pub trait Validator {
-    fn prepare_for_validation(&mut self, _: &mut Context) -> ValidationError {
-        return ValidationError::new();
+    fn validate(&mut self, _: &mut Context) -> Result<(), ValidationError> {
+        Ok(())
     }
 
-    fn validate(&mut self, c: &mut Context) -> ValidationError {
-        return self.prepare_for_validation(c);
+    fn prepare_for_validation(&mut self, _: &mut Context) -> Result<(), ValidationError> {
+        Ok(())
     }
 }
 
@@ -25,14 +25,19 @@ pub trait Validator {
 /// colecciones: cada elemento corre sus propias reglas (que a su vez llaman
 /// su propio `prepare_for_validation`), y acumula los errores en un vector.
 impl<T: Validator> Validator for Vec<T> {
-    fn validate(&mut self, c: &mut Context) -> ValidationError {
+    fn validate(&mut self, c: &mut Context) -> Result<(), ValidationError> {
         let mut errors: ValidationError = ValidationError::new();
         for (i, item) in self.iter_mut().enumerate() {
-            let ve = item.validate(c);
-            if ve.has_errors() {
-                errors.push_error(i, ve);
+            match item.validate(c) {
+                Ok(()) => (),
+                Err(ve) => {
+                    errors.push_error(i, ve);
+                }
             }
         }
-        return errors;
+        if errors.has_errors() {
+            return Err(errors);
+        }
+        Ok(())
     }
 }
