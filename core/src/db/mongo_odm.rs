@@ -80,18 +80,18 @@ impl ODMongo {
 
     pub async fn create<T: ODModel>(&self, model: &mut T) -> Result<(), ForgeError> {
         model.set_id(ObjectId::new());
-        model.before_create()?;
+        model.before_create().await?;
         let _ = self.coll::<T>(T::coll_name()).insert_one(&*model).await.map_err(|e| {
             let msg = format!("Failed to create document");
             log::error(&msg, Some(json!({ "mod":"odm::create","error": e.to_string() })));
             ForgeError::internal().message(msg).caused_by(e)
         })?;
-        model.after_create()?;
+        model.after_create().await?;
         Ok(())
     }
 
     pub async fn update<T: ODModel>(&self, model: &mut T) -> Result<(), ForgeError> {
-        model.before_update()?;
+        model.before_update().await?;
         let mut data = to_document(&*model).map_err(|e| {
             let msg = format!("Failed to serialize document");
             log::error(&msg, Some(json!({ "mod":"odm::update","error": e.to_string() })));
@@ -126,7 +126,7 @@ impl ODMongo {
             return Ok(());
         }
 
-        model.after_update()?;
+        model.after_update().await?;
         Ok(())
     }
 
@@ -138,7 +138,7 @@ impl ODMongo {
     }
 
     pub async fn replace<T: ODModel>(&self, model: &mut T) -> Result<(), ForgeError> {
-        model.before_replace()?;
+        model.before_replace().await?;
         let id = model.get_id().ok_or_else(|| {
             let msg = "Document id is None";
             log::error(
@@ -167,12 +167,12 @@ impl ODMongo {
             return Err(ForgeError::not_found().message(msg));
         }
 
-        model.after_replace()?;
+        model.after_replace().await?;
         Ok(())
     }
 
     pub async fn delete<T: ODModel>(&self, model: &mut T) -> Result<(), ForgeError> {
-        model.before_delete()?;
+        model.before_delete().await?;
         let id = model.get_id().ok_or_else(|| {
             let msg = "Document id is None";
             log::error(msg, Some(json!({ "mod":"odm::delete","error": "Document id is None" })));
@@ -198,7 +198,7 @@ impl ODMongo {
             return Err(ForgeError::not_found().message(msg));
         }
 
-        model.after_delete()?;
+        model.after_delete().await?;
         Ok(())
     }
 

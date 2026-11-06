@@ -95,6 +95,21 @@ impl<T: ODModel, U: Serialize + DeserializeOwned + Send + Sync + 'static> ODMFin
         }
     }
 
+    pub async fn exists(&self) -> Result<bool, ForgeError> {
+        let n = self
+            .odm
+            .coll::<T>(T::coll_name())
+            .count_documents(self.filter.clone())
+            .limit(1)
+            .await
+            .map_err(|e| {
+                let msg = format!("Failed to check document existence");
+                log::error(&msg, Some(json!({ "mod":"odm::find::exists","error": e.to_string() })));
+                ForgeError::internal().message(msg).caused_by(e)
+            })?;
+        Ok(n > 0)
+    }
+
     pub async fn get(self) -> Result<Vec<U>, ForgeError> {
         let options = self.build_options();
 

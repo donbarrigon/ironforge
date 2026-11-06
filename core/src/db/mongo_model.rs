@@ -28,29 +28,29 @@ pub trait ODModel: Serialize + DeserializeOwned + Send + Sync + Clone + 'static 
 
     // == Hooks ===================================================
 
-    fn before_create(&mut self) -> Result<(), ForgeError> {
-        Ok(())
+    fn before_create(&mut self) -> impl Future<Output = Result<(), ForgeError>> + Send {
+        async { Ok(()) }
     }
-    fn before_update(&mut self) -> Result<(), ForgeError> {
-        Ok(())
+    fn before_update(&mut self) -> impl Future<Output = Result<(), ForgeError>> + Send {
+        async { Ok(()) }
     }
-    fn before_replace(&mut self) -> Result<(), ForgeError> {
-        Ok(())
+    fn before_replace(&mut self) -> impl Future<Output = Result<(), ForgeError>> + Send {
+        async { Ok(()) }
     }
-    fn before_delete(&mut self) -> Result<(), ForgeError> {
-        Ok(())
+    fn before_delete(&mut self) -> impl Future<Output = Result<(), ForgeError>> + Send {
+        async { Ok(()) }
     }
-    fn after_create(&mut self) -> Result<(), ForgeError> {
-        Ok(())
+    fn after_create(&mut self) -> impl Future<Output = Result<(), ForgeError>> + Send {
+        async { Ok(()) }
     }
-    fn after_update(&mut self) -> Result<(), ForgeError> {
-        Ok(())
+    fn after_update(&mut self) -> impl Future<Output = Result<(), ForgeError>> + Send {
+        async { Ok(()) }
     }
-    fn after_replace(&mut self) -> Result<(), ForgeError> {
-        Ok(())
+    fn after_replace(&mut self) -> impl Future<Output = Result<(), ForgeError>> + Send {
+        async { Ok(()) }
     }
-    fn after_delete(&mut self) -> Result<(), ForgeError> {
-        Ok(())
+    fn after_delete(&mut self) -> impl Future<Output = Result<(), ForgeError>> + Send {
+        async { Ok(()) }
     }
 
     // == Many Operations =========================================
@@ -122,6 +122,10 @@ pub trait ODModel: Serialize + DeserializeOwned + Send + Sync + Clone + 'static 
     {
         Ok(odm()?.find::<Self, U>(filter))
     }
+
+    fn exists(filter: Document) -> impl Future<Output = Result<bool, ForgeError>> + Send {
+        async move { odm()?.find::<Self, Self>(filter).exists().await }
+    }
 }
 
 pub trait ODModelCollection<T: ODModel> {
@@ -136,11 +140,11 @@ impl<T: ODModel> ODModelCollection<T> for Vec<T> {
     fn create(&mut self) -> impl Future<Output = Result<(), ForgeError>> + Send {
         async move {
             for m in self.iter_mut() {
-                m.before_create()?;
+                m.before_create().await?;
             }
             odm()?.create_many(self).await?;
             for m in self.iter_mut() {
-                m.after_create()?;
+                m.after_create().await?;
             }
             Ok(())
         }

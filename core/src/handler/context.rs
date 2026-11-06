@@ -1,4 +1,5 @@
 use hyper::body::Bytes;
+use hyper::http::Extensions;
 use hyper::{Request, Response, body::Incoming, header};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -21,6 +22,8 @@ pub struct Context {
     pub locale: String,
     pub headers: header::HeaderMap,
     pub params: Params,
+    pub session_id: Option<String>,
+    pub extensions: Extensions,
     body_cache: Option<Bytes>,
 }
 
@@ -41,8 +44,25 @@ impl Context {
             locale,
             headers: header::HeaderMap::new(),
             params: Vec::new(),
+            extensions: Extensions::new(),
+            session_id: None,
             body_cache: None,
         }
+    }
+
+    // ─── Extensions genéricas ────────────────────────────────────────
+
+    pub fn ext<T: Send + Sync + 'static>(&self) -> Option<&T> {
+        self.extensions.get::<T>()
+    }
+
+    pub fn set_ext<T: Clone + Send + Sync + 'static>(&mut self, val: T) {
+        self.extensions.insert(val);
+    }
+
+    pub fn require_ext<T: Send + Sync + 'static>(&self) -> Result<&T, ForgeError> {
+        self.ext::<T>()
+            .ok_or_else(|| ForgeError::internal().message("missing context extension"))
     }
 
     /// Content-Type de lo que llegó en el request. Similar que accept()
@@ -65,7 +85,7 @@ impl Context {
             .unwrap_or(ContentType::MsgPack)
     }
 
-    // ─── Headers de salida ───────────────────────────────────────────────────
+    // === Headers de salida ======================================
 
     pub fn set_header(&mut self, name: header::HeaderName, value: &str) -> Result<(), ForgeError> {
         headers::set(&mut self.headers, name, value)
@@ -79,7 +99,7 @@ impl Context {
         headers::remove(&mut self.headers, name)
     }
 
-    // ─── Lectura del body ────────────────────────────────────────────────────
+    // === Lectura del body ======================================
 
     /// Lee y bufferea el body crudo. Cachea el resultado -- Incoming es un
     /// stream que solo se puede consumir una vez, así que si algo ya lo

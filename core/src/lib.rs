@@ -18,6 +18,9 @@ pub use config::load_env;
 pub mod handler;
 pub use handler::Context;
 
+pub mod auth;
+pub use auth::auth::Auth;
+
 pub mod db;
 
 pub mod cache;

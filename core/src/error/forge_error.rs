@@ -152,9 +152,9 @@ impl ForgeError {
     }
 
     /// Adjunta la causa del error (solo visible en modo debug)
-    pub fn caused_by(mut self, cause: impl std::error::Error + Send + Sync + 'static) -> Self {
+    pub fn caused_by(mut self, e: impl std::error::Error + Send + Sync + 'static) -> Self {
         if env().app.debug {
-            self.cause = create_cause(Some(Box::new(cause)));
+            self.cause = create_cause(Some(Box::new(e)));
         }
         self
     }
