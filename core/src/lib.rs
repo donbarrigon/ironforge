@@ -9,6 +9,7 @@ pub use server::Server;
 
 pub mod error;
 pub use error::ForgeError;
+pub use error::validation_error::ValidationError;
 
 pub mod config;
 pub use config::Env;
@@ -22,13 +23,23 @@ pub mod auth;
 pub use auth::auth::Auth;
 
 pub mod db;
+pub use db::mongo_model::ODModel;
 
 pub mod cache;
 
 pub mod validator;
+pub use validator::Validator;
 
 pub mod lang;
 
 pub mod log;
+// pub use log::alert;
+// pub use log::critical;
+// pub use log::debug;
+// pub use log::emergency;
+// pub use log::error;
+// pub use log::info;
+// pub use log::notice;
+// pub use log::warning;
 
 pub mod utils;
