@@ -1,12 +1,16 @@
-use crate::{Authenticatable, error::ForgeError};
+use std::sync::Arc;
+
+use crate::{Authenticatable, auth::session::Token, error::ForgeError};
 use mongodb::bson::oid::ObjectId;
 
 // === Struct =====================================================
 
+/// Sesión iniciada. Solo existe para usuarios con login.
 pub struct Auth<T: Authenticatable> {
-    pub session_id: String,
+    pub session_id: Token,
     pub user_id: ObjectId,
-    pub user: T,
+    /// Copia en RAM del usuario (compartida, se obtiene con downcast).
+    pub user: Arc<T>,
 
     pub created_at: i64,
     pub last_activity: i64,
@@ -15,9 +19,23 @@ pub struct Auth<T: Authenticatable> {
 
     pub ip: Option<String>,
     pub user_agent: Option<String>,
+}
 
-    // pub impersonator_id: Option<String>,
-    pub guard: String,
+// Manual para no exigir `T: Clone` (solo se clona el Arc).
+impl<T: Authenticatable> Clone for Auth<T> {
+    fn clone(&self) -> Self {
+        Self {
+            session_id: self.session_id,
+            user_id: self.user_id,
+            user: Arc::clone(&self.user),
+            created_at: self.created_at,
+            last_activity: self.last_activity,
+            expires_at: self.expires_at,
+            remember: self.remember,
+            ip: self.ip.clone(),
+            user_agent: self.user_agent.clone(),
+        }
+    }
 }
 
 // === Macros de delegacion =======================================

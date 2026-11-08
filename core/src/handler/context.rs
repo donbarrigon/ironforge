@@ -22,7 +22,7 @@ pub struct Context {
     pub locale: String,
     pub headers: header::HeaderMap,
     pub params: Params,
-    pub session_id: Option<String>,
+    pub session_id: Option<crate::auth::session::Token>,
     pub extensions: Extensions,
     body_cache: Option<Bytes>,
 }

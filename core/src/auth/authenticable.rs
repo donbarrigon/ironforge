@@ -1,12 +1,16 @@
 use std::fmt;
 
 use mongodb::bson::oid::ObjectId;
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
 use crate::error::ForgeError;
 use crate::log;
 
-pub trait Authenticatable: Send + Sync + 'static {
+/// `Serialize + DeserializeOwned`: el usuario se guarda en el documento de sesión
+/// en Mongo y se reconstruye al recargar una sesión que no está en RAM.
+pub trait Authenticatable: Serialize + DeserializeOwned + Send + Sync + 'static {
     // === Obligatorios: los implementa el modelo =================
 
     fn auth_id(&self) -> ObjectId;

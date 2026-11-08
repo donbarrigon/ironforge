@@ -44,7 +44,7 @@ impl Server {
         // let _ = rustls::crypto::ring::default_provider().install_default(); // ring
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default(); // aws-lc-rs
 
-        config::init()?;
+        config::init().await?;
 
         let addr = format!("{}:{}", env().server.host, env().server.port)
             .parse()
@@ -169,6 +169,16 @@ impl Server {
                     }
                 }
             }
+        }
+
+        // Guardar en Mongo la actividad de sesiones pendiente antes de salir.
+        if let Ok(session) = crate::auth::session::session() {
+            session.flush().await;
+        }
+
+        // Apagado ordenado: escribir a Mongo la actividad de sesiones pendiente.
+        if let Ok(session) = crate::auth::session::session() {
+            session.flush().await;
         }
 
         Ok(())

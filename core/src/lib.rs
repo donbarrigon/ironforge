@@ -22,6 +22,7 @@ pub use handler::Context;
 pub mod auth;
 pub use auth::auth::Auth;
 pub use auth::authenticable::Authenticatable;
+pub use auth::session::{Session, session};
 
 pub mod db;
 pub use db::mongo_model::ODModel;
