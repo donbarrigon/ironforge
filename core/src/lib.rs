@@ -34,6 +34,9 @@ pub use validator::Validator;
 
 pub mod lang;
 
+pub mod storage;
+pub use storage::{LocalStorage, Lv};
+
 pub mod log;
 // pub use log::alert;
 // pub use log::critical;
