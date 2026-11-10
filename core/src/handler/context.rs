@@ -22,6 +22,7 @@ pub struct Context {
     pub locale: String,
     pub headers: header::HeaderMap,
     pub params: Params,
+    /// Token de sesión de este request, una vez resuelto por `auth()`/`login()`.
     pub session_id: Option<crate::auth::session::Token>,
     pub extensions: Extensions,
     body_cache: Option<Bytes>,

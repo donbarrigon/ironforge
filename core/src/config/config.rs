@@ -247,7 +247,7 @@ pub fn load_env() -> Result<(), Box<dyn std::error::Error>> {
 pub async fn init() -> Result<(), Box<dyn std::error::Error>> {
     load_env()?;
     crate::log::init(); // inicializa el logger
-    ODMongo::init();
+    ODMongo::init().await?;
     Session::init().await?;
     crate::handler::headers::init(); // inicializa los bytes de fallback
     return Ok(());

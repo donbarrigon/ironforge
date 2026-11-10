@@ -319,6 +319,16 @@ fn gen_rule_check(self_expr: &Expr, field_ident: &Ident, json_name: &str, rule: 
             #self_expr.#field_ident.#method(#(#args),*)
                 .expect("re_ex: el patrón regex no compiló")
         }
+    } else if matches!(rule_name.as_str(), "is_in" | "not_in") {
+        // `campo => [ is_in(&LISTA) ]`: el argumento es la lista y el campo
+        // es el valor buscado (al revés que `x.is_in(..)`). Se compara con
+        // `==` para aceptar, por ejemplo, un `String` contra `&[&str]`.
+        let Some(list) = args.first().filter(|_| args.len() == 1) else {
+            return syn::Error::new(method.span(), format!("`{rule_name}` recibe exactamente un argumento: la lista"))
+                .to_compile_error();
+        };
+        let found = quote! { (#list).iter().any(|item| *item == #self_expr.#field_ident) };
+        if rule_name == "is_in" { found } else { quote! { !(#found) } }
     } else if matches!(rule_name.as_str(), "min" | "max" | "gt" | "lt") {
         quote! {
             ::ironforge::validator::range::Range::#method(&#self_expr.#field_ident, #(#args),*)
@@ -349,6 +359,8 @@ fn gen_rule_check(self_expr: &Expr, field_ident: &Ident, json_name: &str, rule: 
 
     match args.len() {
         0 => {}
+        // La lista de `is_in`/`not_in` no va al mensaje: puede ser enorme y no implementa `Display`.
+        1 if matches!(rule_name.as_str(), "is_in" | "not_in") => {}
         1 => {
             let name = method.to_string();
             let a0 = &args[0];

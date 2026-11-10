@@ -59,6 +59,9 @@ enum Lookup<T: Authenticatable> {
     Hit(Auth<T>),
     Expired,
     Miss,
+    /// La sesión existe pero guarda otro tipo de usuario: error de programación,
+    /// no se borra la sesión.
+    Mismatch,
 }
 
 // === Session ====================================================
@@ -145,8 +148,9 @@ impl Session {
 
     // === API pública ============================================
 
-    /// Login: crea la sesión con token nuevo (Mongo directo) y devuelve el valor de la cookie.
-    pub async fn create<T: Authenticatable>(&self, user: T, remember: bool) -> Result<String, ForgeError> {
+    /// Login: crea la sesión con token nuevo (Mongo directo). La cookie se arma con
+    /// `set_cookie_header(&auth.session_id, auth.expires_at)`.
+    pub async fn create<T: Authenticatable>(&self, user: T, remember: bool) -> Result<Auth<T>, ForgeError> {
         let token = new_token()?;
         let now = now_ms();
         let id = ObjectId::new();
@@ -172,12 +176,13 @@ impl Session {
             .await
             .map_err(|e| db_err("session::create", "Failed to create session", e))?;
 
+        let user = Arc::new(user);
         self.insert(
             token,
             Entry {
                 id,
                 user_id,
-                user: Arc::new(user),
+                user: Arc::clone(&user) as Arc<dyn Any + Send + Sync>,
                 created_at: now,
                 remember,
                 last_activity: AtomicI64::new(now),
@@ -185,56 +190,61 @@ impl Session {
                 dirty: AtomicBool::new(false),
             },
         );
-        Ok(self.encode_cookie(&token))
+        Ok(Auth {
+            session_id: token,
+            user_id,
+            user,
+            created_at: now,
+            last_activity: now,
+            expires_at,
+            remember,
+            ip: None,
+            user_agent: None,
+        })
     }
 
-    /// Middleware: verifica la firma, busca en RAM (o en Mongo) y renueva la actividad.
-    /// `None` si la cookie es inválida, la sesión no existe o venció.
-    pub async fn get<T: Authenticatable>(&self, cookie: &str) -> Option<Auth<T>> {
-        let token = self.decode_cookie(cookie)?;
-        match self.touch::<T>(&token, now_ms()) {
+    /// Busca en RAM (o en Mongo) y renueva la actividad: `last_activity` y `expires_at`.
+    /// `None` si la sesión no existe, venció o guarda otro tipo de usuario.
+    pub async fn get<T: Authenticatable>(&self, token: &Token) -> Option<Auth<T>> {
+        match self.touch::<T>(token, now_ms()) {
             Lookup::Hit(auth) => Some(auth),
             Lookup::Expired => {
-                self.remove_token(&token);
+                self.remove_token(token);
                 None
             }
-            Lookup::Miss => self.load::<T>(token).await,
+            Lookup::Mismatch => None,
+            Lookup::Miss => self.load::<T>(*token).await,
         }
     }
 
-    /// Token nuevo para la misma sesión (cambio de privilegios). Invalida el token
-    /// viejo y devuelve el valor de la cookie nueva.
-    pub async fn regenerate(&self, cookie: &str) -> Result<String, ForgeError> {
-        let old = self.decode_cookie(cookie).ok_or_else(ForgeError::unauthorized)?;
+    /// Token nuevo para la misma sesión (cambio de privilegios). Invalida el token viejo.
+    pub async fn regenerate(&self, old: &Token) -> Result<Token, ForgeError> {
         let new = new_token()?;
 
         let res = self
             .coll
             .update_one(
-                doc! { "token_hash": hash_token(&old), "expires_at": { "$gt": DateTime::now() } },
+                doc! { "token_hash": hash_token(old), "expires_at": { "$gt": DateTime::now() } },
                 doc! { "$set": { "token_hash": hash_token(&new) } },
             )
             .await
             .map_err(|e| db_err("session::regenerate", "Failed to regenerate session", e))?;
 
-        let entry = self.remove_token(&old);
+        let entry = self.remove_token(old);
         if res.matched_count == 0 {
             return Err(ForgeError::unauthorized());
         }
         if let Some(entry) = entry {
             self.insert(new, entry);
         }
-        Ok(self.encode_cookie(&new))
+        Ok(new)
     }
 
-    /// Logout: borra la sesión de RAM y de Mongo. Una cookie inválida no es error.
-    pub async fn destroy(&self, cookie: &str) -> Result<(), ForgeError> {
-        let Some(token) = self.decode_cookie(cookie) else {
-            return Ok(());
-        };
-        self.remove_token(&token);
+    /// Logout: borra la sesión de RAM y de Mongo.
+    pub async fn destroy(&self, token: &Token) -> Result<(), ForgeError> {
+        self.remove_token(token);
         self.coll
-            .delete_one(doc! { "token_hash": hash_token(&token) })
+            .delete_one(doc! { "token_hash": hash_token(token) })
             .await
             .map_err(|e| db_err("session::destroy", "Failed to destroy session", e))?;
         Ok(())
@@ -282,13 +292,15 @@ impl Session {
         Ok(())
     }
 
-    /// `Set-Cookie` con la configuración de `env.session`. Sin "recordarme" es cookie de navegador.
-    pub fn set_cookie_header(&self, value: &str, remember: bool) -> String {
-        let cfg = &env().session;
-        let mut s = format!("{}={}; Path=/", cfg.cookie_name, value);
-        if remember {
-            s.push_str(&format!("; Max-Age={}", cfg.remember().as_secs()));
-        }
+    /// `Set-Cookie` firmado con la configuración de `env.session`. `Max-Age` es lo que
+    /// le queda a la sesión, así la cookie vence junto con la sesión del servidor.
+    pub fn set_cookie_header(&self, token: &Token, expires_at: i64) -> String {
+        let max_age = (expires_at - now_ms()).max(0) / 1000;
+        let mut s = format!(
+            "{}={}; Path=/; Max-Age={max_age}",
+            env().session.cookie_name,
+            self.encode_cookie(token)
+        );
         push_cookie_attrs(&mut s);
         s
     }
@@ -323,7 +335,7 @@ impl Session {
                 "Session user type mismatch",
                 Some(json!({ "mod": "session::get", "expected": std::any::type_name::<T>() })),
             );
-            return Lookup::Expired;
+            return Lookup::Mismatch;
         };
 
         entry.last_activity.fetch_max(now, Ordering::Relaxed);
@@ -414,6 +426,7 @@ impl Session {
                 self.remove_token(&token);
                 None
             }
+            Lookup::Mismatch => None,
             Lookup::Miss => self.load_from_db::<T>(token).await,
         };
 
@@ -567,7 +580,7 @@ impl Session {
     }
 
     /// Verifica la firma (tiempo constante) y devuelve el token.
-    fn decode_cookie(&self, cookie: &str) -> Option<Token> {
+    pub fn decode_cookie(&self, cookie: &str) -> Option<Token> {
         let raw = URL_SAFE_NO_PAD.decode(cookie.trim()).ok()?;
         if raw.len() != 32 + MAC_LEN {
             return None;
