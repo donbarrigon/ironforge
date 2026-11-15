@@ -76,6 +76,13 @@ pub trait ODModel: Serialize + DeserializeOwned + Send + Sync + Clone + 'static 
         async move { odm()?.update::<Self>(self).await }
     }
 
+    /// Actualiza solo `fields` con `$set` y corre los hooks de update.
+    /// Acepta rutas con punto (`"profile.name"`) y deja el modelo sincronizado.
+    /// Ej: `user.update_fields(doc! { "email_verified_at": DateTime::now() }).await?`
+    fn update_fields(&mut self, fields: Document) -> impl Future<Output = Result<(), ForgeError>> + Send {
+        async move { odm()?.update_fields::<Self>(self, fields).await }
+    }
+
     fn save(&mut self) -> impl Future<Output = Result<(), ForgeError>> + Send {
         async move { odm()?.save::<Self>(self).await }
     }

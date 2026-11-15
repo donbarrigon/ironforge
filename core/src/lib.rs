@@ -48,3 +48,4 @@ pub mod log;
 // pub use log::warning;
 
 pub mod utils;
+pub use utils::str::StrFormat;

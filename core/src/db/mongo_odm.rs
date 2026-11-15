@@ -1,4 +1,4 @@
-use mongodb::bson::{Document, doc, to_document};
+use mongodb::bson::{Bson, Document, doc, from_document, to_document};
 use mongodb::results::UpdateResult;
 use mongodb::{Client, Collection, Database, bson::oid::ObjectId};
 use serde::Serialize;
@@ -106,7 +106,7 @@ impl ODMongo {
 
         let res = self
             .coll::<T>(T::coll_name())
-            .update_one(doc! {"_id": id}, data)
+            .update_one(doc! { "_id": id }, doc! { "$set": data })
             .await
             .map_err(|e| {
                 let msg = format!("Failed to update document [{}]", id);
@@ -127,6 +127,63 @@ impl ODMongo {
         }
 
         model.after_update().await?;
+        Ok(())
+    }
+
+    /// Actualiza solo algunos campos con `$set`, corriendo los hooks de update.
+    ///
+    /// 1. Aplica `fields` al modelo en memoria (acepta rutas con punto: `"profile.name"`).
+    /// 2. Corre `before_update`, que puede cambiar más campos (ej. `updated_at`).
+    /// 3. Hace `$set` de los campos de primer nivel que cambiaron por el input o por el hook.
+    /// 4. Corre `after_update` si Mongo modificó el documento.
+    ///
+    /// El modelo queda igual a lo guardado, sin asignar los campos a mano.
+    pub async fn update_fields<T: ODModel>(&self, model: &mut T, fields: Document) -> Result<(), ForgeError> {
+        let id = model.get_id().ok_or_else(|| {
+            let msg = "Document id is None";
+            log::error(msg, Some(json!({ "mod":"odm::update_fields","error": msg })));
+            ForgeError::not_found().message(msg)
+        })?;
+
+        let original = to_doc(&*model, "odm::update_fields")?;
+        let mut merged = original.clone();
+        for (path, value) in fields {
+            set_path(&mut merged, &path, value)?;
+        }
+        *model = from_document(merged).map_err(|e| {
+            let msg = "Fields do not match the model";
+            log::error(msg, Some(json!({ "mod":"odm::update_fields","error": e.to_string() })));
+            ForgeError::bad_request().message(msg).caused_by(e)
+        })?;
+
+        model.before_update().await?;
+
+        let set: Document = to_doc(&*model, "odm::update_fields")?
+            .into_iter()
+            .filter(|(key, value)| key != "_id" && original.get(key) != Some(value))
+            .collect();
+        if set.is_empty() {
+            return Ok(());
+        }
+
+        let res = self
+            .coll::<T>(T::coll_name())
+            .update_one(doc! { "_id": id }, doc! { "$set": set })
+            .await
+            .map_err(|e| {
+                let msg = format!("Failed to update document [{}]", id);
+                log::error(&msg, Some(json!({ "mod":"odm::update_fields","error": e.to_string() })));
+                ForgeError::internal().message(msg).caused_by(e)
+            })?;
+
+        if res.matched_count == 0 {
+            let msg = format!("Document [{}] not found", id);
+            log::warning(&msg, Some(json!({ "mod":"odm::update_fields","error": "res.matched_count == 0" })));
+            return Err(ForgeError::not_found().message(msg));
+        }
+        if res.modified_count > 0 {
+            model.after_update().await?;
+        }
         Ok(())
     }
 
@@ -298,7 +355,7 @@ impl ODMongo {
         data.remove("_id");
         let res = self
             .coll::<T>(T::coll_name())
-            .find_one_and_update(doc! {"_id": id}, data)
+            .find_one_and_update(doc! { "_id": id }, doc! { "$set": data })
             .await
             .map_err(|e| {
                 let msg = format!("Failed to update document: [{}]", id);
@@ -452,5 +509,49 @@ pub fn odm() -> Result<&'static ODMongo, ForgeError> {
     match ODMONGO.get() {
         Some(odm) => Ok(odm),
         None => Err(ForgeError::internal().message("DB not initialized")),
+    }
+}
+
+/// Serializa el modelo a `Document`.
+fn to_doc<T: Serialize>(model: &T, module: &str) -> Result<Document, ForgeError> {
+    to_document(model).map_err(|e| {
+        let msg = "Failed to serialize document";
+        log::error(msg, Some(json!({ "mod": module, "error": e.to_string() })));
+        ForgeError::internal().message(msg).caused_by(e)
+    })
+}
+
+/// Asigna `value` en `path` (`"a.b.c"`), creando los subdocumentos que falten.
+fn set_path(doc: &mut Document, path: &str, value: Bson) -> Result<(), ForgeError> {
+    match path.split_once('.') {
+        None => {
+            doc.insert(path, value);
+            Ok(())
+        }
+        Some((head, rest)) => {
+            let entry = doc.entry(head.to_string()).or_insert_with(|| Bson::Document(Document::new()));
+            match entry {
+                Bson::Document(sub) => set_path(sub, rest, value),
+                _ => Err(ForgeError::bad_request().message(format!("Field [{head}] is not a document"))),
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::set_path;
+    use mongodb::bson::{Bson, doc};
+
+    #[test]
+    fn set_path_nested() {
+        let mut d = doc! { "name": "a", "profile": { "name": "x", "city": "y" } };
+        set_path(&mut d, "name", Bson::from("b")).unwrap();
+        set_path(&mut d, "profile.name", Bson::from("z")).unwrap();
+        set_path(&mut d, "extra.deep.key", Bson::from(1)).unwrap();
+        assert_eq!(
+            d,
+            doc! { "name": "b", "profile": { "name": "z", "city": "y" }, "extra": { "deep": { "key": 1 } } }
+        );
     }
 }

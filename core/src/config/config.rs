@@ -15,6 +15,9 @@ pub struct Env {
     pub server: ServerEnv,
     pub log: LogEnv,
     pub session: SessionEnv,
+    /// Configuración propia de la app, que ironforge no usa (ej. `extensions.mail`).
+    /// Cada app la lee con `env().extensions["clave"]` y la deserializa a su propio struct.
+    pub extensions: serde_json::Value,
 }
 
 // === App ========================================================
