@@ -12,6 +12,7 @@ use tokio_rustls::TlsAcceptor;
 
 use crate::config;
 use crate::config::env;
+use crate::handler::context::ClientAddr;
 use crate::server::dispatch::dispatch;
 use crate::server::router::Router;
 
@@ -101,7 +102,7 @@ impl Server {
             loop {
                 tokio::select! {
                     result = listener.accept() => {
-                        let (stream, _) = result?;
+                        let (stream, peer) = result?;
                         let acceptor = tls_acceptor.clone();
 
                         tokio::spawn(async move {
@@ -118,7 +119,10 @@ impl Server {
                             if let Err(e) = auto::Builder::new(TokioExecutor::new())
                                 .serve_connection_with_upgrades(
                                     io,
-                                    service_fn(move |req| dispatch(req, router)),
+                                    service_fn(move |mut req| {
+                                        req.extensions_mut().insert(ClientAddr(peer));
+                                        dispatch(req, router)
+                                    }),
                                 )
                                 .await
                             {
@@ -144,13 +148,16 @@ impl Server {
             loop {
                 tokio::select! {
                     result = listener.accept() => {
-                        let (stream, _) = result?;
+                        let (stream, peer) = result?;
                         let io = TokioIo::new(stream);
 
                         tokio::spawn(async move {
                             if let Err(e) = http1::Builder::new()
                                 .keep_alive(true)
-                                .serve_connection(io, service_fn(move |req| dispatch(req, router)))
+                                .serve_connection(io, service_fn(move |mut req| {
+                                    req.extensions_mut().insert(ClientAddr(peer));
+                                    dispatch(req, router)
+                                }))
                                 .await
                             {
                                 eprintln!("error en conexión HTTP: {:?}", e);

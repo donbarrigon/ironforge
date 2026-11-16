@@ -40,6 +40,23 @@ const MAC_LEN: usize = 32;
 /// Máximo de updates por comando en la sincronización por lote.
 const SYNC_CHUNK: usize = 1000;
 
+/// Datos de una sesión para mostrar al usuario (dispositivos con sesión abierta).
+/// No incluye el token: con `id` se cierra con `Session::destroy_by_id`.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SessionInfo {
+    /// `_id` del documento en hex.
+    pub id: String,
+    /// Fechas en milisegundos desde 1970.
+    pub created_at: i64,
+    pub last_activity: i64,
+    pub expires_at: i64,
+    pub remember: bool,
+    pub ip: Option<String>,
+    pub user_agent: Option<String>,
+    /// Es la sesión del request que pidió la lista.
+    pub current: bool,
+}
+
 // === Entrada en RAM =============================================
 
 struct Entry {
@@ -149,8 +166,15 @@ impl Session {
     // === API pública ============================================
 
     /// Login: crea la sesión con token nuevo (Mongo directo). La cookie se arma con
-    /// `set_cookie_header(&auth.session_id, auth.expires_at)`.
-    pub async fn create<T: Authenticatable>(&self, user: T, remember: bool) -> Result<Auth<T>, ForgeError> {
+    /// `set_cookie_header(&auth.session_id, auth.expires_at)`. `ip` y `user_agent`
+    /// se guardan para mostrarlos en `list_user`.
+    pub async fn create<T: Authenticatable>(
+        &self,
+        user: T,
+        remember: bool,
+        ip: Option<String>,
+        user_agent: Option<String>,
+    ) -> Result<Auth<T>, ForgeError> {
         let token = new_token()?;
         let now = now_ms();
         let id = ObjectId::new();
@@ -172,6 +196,8 @@ impl Session {
                 "last_activity": DateTime::from_millis(now),
                 "expires_at": DateTime::from_millis(expires_at),
                 "remember": remember,
+                "ip": &ip,
+                "user_agent": &user_agent,
             })
             .await
             .map_err(|e| db_err("session::create", "Failed to create session", e))?;
@@ -198,8 +224,8 @@ impl Session {
             last_activity: now,
             expires_at,
             remember,
-            ip: None,
-            user_agent: None,
+            ip,
+            user_agent,
         })
     }
 
@@ -263,6 +289,104 @@ impl Session {
             .await
             .map_err(|e| db_err("session::invalidate_user", "Failed to invalidate user sessions", e))?;
         Ok(())
+    }
+
+    /// Cierra todas las sesiones del usuario menos `keep` (ej. tras cambiar la
+    /// contraseña, se conserva la del request que la cambió).
+    pub async fn invalidate_user_except(&self, user_id: ObjectId, keep: &Token) -> Result<(), ForgeError> {
+        let tokens = self.by_user.lock().unwrap().get(&user_id).cloned().unwrap_or_default();
+        for token in tokens.iter().filter(|t| *t != keep) {
+            self.remove_token(token);
+        }
+        self.coll
+            .delete_many(doc! { "user_id": user_id, "token_hash": { "$ne": hash_token(keep) } })
+            .await
+            .map_err(|e| db_err("session::invalidate_user_except", "Failed to invalidate user sessions", e))?;
+        Ok(())
+    }
+
+    /// Sesiones vigentes del usuario, la más activa primero. `current` marca la
+    /// del request (si se pasa).
+    pub async fn list_user(&self, user_id: ObjectId, current: Option<&Token>) -> Result<Vec<SessionInfo>, ForgeError> {
+        use tokio_stream::StreamExt;
+
+        // La actividad en RAM es más reciente que la de Mongo (se sincroniza por lotes).
+        let mut in_ram: AHashMap<ObjectId, (i64, i64)> = AHashMap::new();
+        let tokens = self.by_user.lock().unwrap().get(&user_id).cloned().unwrap_or_default();
+        for token in &tokens {
+            if let Some(e) = self.shard(token).read().unwrap().get(token) {
+                in_ram.insert(
+                    e.id,
+                    (e.last_activity.load(Ordering::Relaxed), e.expires_at.load(Ordering::Relaxed)),
+                );
+            }
+        }
+        let current_hash = current.map(hash_token);
+
+        let mut cursor = self
+            .coll
+            .find(doc! { "user_id": user_id })
+            .await
+            .map_err(|e| db_err("session::list_user", "Failed to list sessions", e))?;
+
+        let now = now_ms();
+        let mut list = Vec::new();
+        while let Some(doc) = cursor.next().await {
+            let doc = doc.map_err(|e| db_err("session::list_user", "Failed to list sessions", e))?;
+            let (Ok(id), Ok(created_at), Ok(last_activity), Ok(expires_at)) = (
+                doc.get_object_id("_id"),
+                doc.get_datetime("created_at"),
+                doc.get_datetime("last_activity"),
+                doc.get_datetime("expires_at"),
+            ) else {
+                continue;
+            };
+            let (mut last_activity, mut expires_at) = (last_activity.timestamp_millis(), expires_at.timestamp_millis());
+            if let Some((ram_last, ram_exp)) = in_ram.get(&id) {
+                last_activity = last_activity.max(*ram_last);
+                expires_at = expires_at.max(*ram_exp);
+            }
+            // El TTL de Mongo corre cada ~60 s: puede haber documentos ya vencidos.
+            if expires_at <= now {
+                continue;
+            }
+
+            let current = match (&current_hash, doc.get_binary_generic("token_hash")) {
+                (Some(h), Ok(stored)) => *stored == h.bytes,
+                _ => false,
+            };
+            list.push(SessionInfo {
+                id: id.to_hex(),
+                created_at: created_at.timestamp_millis(),
+                last_activity,
+                expires_at,
+                remember: doc.get_bool("remember").unwrap_or(false),
+                ip: doc.get_str("ip").ok().map(str::to_owned),
+                user_agent: doc.get_str("user_agent").ok().map(str::to_owned),
+                current,
+            });
+        }
+
+        list.sort_by_key(|s| std::cmp::Reverse(s.last_activity));
+        Ok(list)
+    }
+
+    /// Cierra una sesión del usuario por su `id` (el de `SessionInfo`).
+    /// `false` si no existe o es de otro usuario.
+    pub async fn destroy_by_id(&self, user_id: ObjectId, id: ObjectId) -> Result<bool, ForgeError> {
+        let tokens = self.by_user.lock().unwrap().get(&user_id).cloned().unwrap_or_default();
+        for token in &tokens {
+            let matches = self.shard(token).read().unwrap().get(token).is_some_and(|e| e.id == id);
+            if matches {
+                self.remove_token(token);
+            }
+        }
+        let res = self
+            .coll
+            .delete_one(doc! { "_id": id, "user_id": user_id })
+            .await
+            .map_err(|e| db_err("session::destroy_by_id", "Failed to destroy session", e))?;
+        Ok(res.deleted_count > 0)
     }
 
     /// Reemplaza la copia del usuario en todas sus sesiones (RAM y Mongo).

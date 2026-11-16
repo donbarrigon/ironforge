@@ -104,7 +104,9 @@ macro_rules! static_regex {
 // [a-zA-Z] -- así "José", "Muñoz" pasan, igual que el default de Laravel.
 static_regex!(re_email_pat, r"^[^\s@]+@[^\s@]+\.[^\s@]+$");
 static_regex!(re_phone_pat, r"^\d{7,15}$");
-static_regex!(re_phone_code_pat, r"^\+\d{1,3}\d{7,15}$");
+// E.164: `+`, código de país (1-3 dígitos, nunca empieza en 0) y máximo
+// 15 dígitos en total contando el código. Mínimo 8 (código + 7 del número).
+static_regex!(re_phone_code_pat, r"^\+[1-9]\d{7,14}$");
 static_regex!(re_alpha_pat, r"^[\p{L}\p{M}]+$");
 static_regex!(re_alpha_dash_pat, r"^[\p{L}\p{M}_-]+$");
 static_regex!(re_alpha_spaces_pat, r"^[\p{L}\p{M} ]+$");

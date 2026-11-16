@@ -15,6 +15,11 @@ use crate::{
     validator::Validator,
 };
 
+/// Dirección de la conexión TCP del cliente. El servidor la pone en las
+/// extensions de cada request; se lee con `Context::ip()`.
+#[derive(Debug, Clone, Copy)]
+pub struct ClientAddr(pub std::net::SocketAddr);
+
 pub struct Context {
     pub r: Request<Incoming>,
     pub w: Option<ResBody>,
@@ -245,6 +250,13 @@ impl Context {
         builder
             .body(body)
             .unwrap_or_else(|_| Response::new(ResBody::full(headers::fallback_json_bytes().clone())))
+    }
+
+    /// IP de la conexión del cliente. Detrás de un proxy (nginx, balanceador) es
+    /// la IP del proxy: en ese caso habría que leer `X-Forwarded-For` de un proxy
+    /// de confianza, cosa que todavía no se hace.
+    pub fn ip(&self) -> Option<std::net::IpAddr> {
+        self.r.extensions().get::<ClientAddr>().map(|a| a.0.ip())
     }
 
     pub fn require_param(&self, name: &str) -> Result<&str, ForgeError> {

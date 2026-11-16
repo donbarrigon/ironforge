@@ -31,10 +31,9 @@ impl Context {
             return Ok(Some(auth.clone()));
         }
 
-        let Some(mut auth) = session.get::<T>(&token).await else {
+        let Some(auth) = session.get::<T>(&token).await else {
             return Ok(None);
         };
-        auth.user_agent = self.user_agent();
         self.put_session_cookie(session.set_cookie_header(&token, auth.expires_at))?;
         self.session_id = Some(token);
         self.set_ext(auth.clone());
@@ -49,8 +48,8 @@ impl Context {
             session.destroy(&old).await?;
         }
 
-        let mut auth = session.create(user, remember).await?;
-        auth.user_agent = self.user_agent();
+        let ip = self.ip().map(|ip| ip.to_string());
+        let auth = session.create(user, remember, ip, self.user_agent()).await?;
         self.put_session_cookie(session.set_cookie_header(&auth.session_id, auth.expires_at))?;
         self.session_id = Some(auth.session_id);
         self.extensions.remove::<SignedOut>();
