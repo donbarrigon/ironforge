@@ -786,7 +786,7 @@ fn hash_token(token: &Token) -> Binary {
 }
 
 /// `base64:...` se decodifica; cualquier otro valor se usa tal cual como bytes.
-fn decode_app_key(key: &str) -> Result<Vec<u8>, String> {
+pub(crate) fn decode_app_key(key: &str) -> Result<Vec<u8>, String> {
     let key = key.trim();
     if key.is_empty() {
         return Err("app.key is empty".into());

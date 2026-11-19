@@ -6,3 +6,5 @@ pub use res_body::BoxStream;
 pub use res_body::ResBody;
 
 pub mod headers;
+
+pub mod resources;

@@ -163,6 +163,10 @@ pub struct SessionEnv {
     pub cookie_http_only: bool,
     pub cookie_same_site: SameSite,
     pub cookie_domain: Option<String>,
+
+    // --- CSRF ---
+    /// Vida de los tokens CSRF.
+    pub csrf_ttl_minutes: u64,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -193,6 +197,8 @@ impl Default for SessionEnv {
             cookie_http_only: true,
             cookie_same_site: SameSite::Lax,
             cookie_domain: None,
+
+            csrf_ttl_minutes: 120,
         }
     }
 }
@@ -216,6 +222,10 @@ impl SessionEnv {
 
     pub fn sync_interval(&self) -> Duration {
         Duration::from_secs(self.sync_interval_seconds)
+    }
+
+    pub fn csrf_ttl(&self) -> Duration {
+        Duration::from_secs(self.csrf_ttl_minutes * 60)
     }
 
     /// Número de sesiones al que se baja tras expulsar.

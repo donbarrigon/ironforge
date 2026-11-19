@@ -84,7 +84,7 @@ impl Context {
     // === Privadas ===============================================
 
     /// Token de este request: el ya resuelto o el de la cookie, salvo que se haya hecho logout.
-    fn current_token(&self, session: &Session) -> Option<Token> {
+    pub(crate) fn current_token(&self, session: &Session) -> Option<Token> {
         if self.ext::<SignedOut>().is_some() {
             return None;
         }
